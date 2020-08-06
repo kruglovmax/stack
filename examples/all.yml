@@ -1,0 +1,31 @@
+- package: dev
+  vars:
+    target_name: dev.infra.click
+    labels:
+      target: ${target_name}
+  cmd:
+    - cmd1
+    - cmd2
+  packages:
+    - .
+    - pkg1
+    - pkg2
+  dependencies:
+    - git: https://gitlab.haskell.org/ghc/ghc.git
+      commit: 5be7ad7861c8d39f60b7101fd8d8e816ff50353a
+      subdirs:
+        - libraries/Cabal/Cabal
+        - libraries/...
+  drop-packages:
+    - pkg2
+    - buggy-package
+  tags:
+    - test
+    - tag
+  user-message: |
+    sdfsdf
+    asdasd
+  require-stack-version: "== 0.6.*"
+  extra-lib-dirs:
+    - /opt/libs
+  dump-logs: none, color, error

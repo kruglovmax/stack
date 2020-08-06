@@ -1,0 +1,14 @@
+vars:
+  combo2:
+    test+: var
+    test2: var
+    test4: var
+  test+: var
+  test2:
+    test: test
+    qweqty+: 1
+  test3++:
+  - qweq
+  - eqwe
+
+logs: pretty

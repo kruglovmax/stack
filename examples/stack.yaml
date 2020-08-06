@@ -1,0 +1,134 @@
+# api field is required
+api: v1alpha1
+
+# name field is optional and it should be equal to directory name
+# default value is to directory name
+# name: &name dev
+
+# workspace field is path where we working and strongly automate generated
+# don't define this field manual
+# default value is dir where this yaml file placed
+# but if defined this will be used
+# workspace: .
+
+# vars field is global, optional and should be a valid yaml dictionary
+# default value is empty dict
+# keys without + at the end of name will be merged with same keys in children stacks with priority to self keys (helm chart's values behavior)
+# keys with + at the end of name will be merged with same keys in children stacks with priority to children keys
+# stack file must be a valid yaml dictionary
+# keys with string vars may contain helm templates (std go + sprig from masterminds)
+vars:
+  target_name: &target dev.infra.click
+  labels+:
+    target: *target
+    stack+: dev_stack
+  prom:
+    chart:
+      - qweq
+      - vxcv
+  loki: |
+    {{ "README.md" | file.Read }}
+  libs: stacks
+
+varsFrom:
+# yaml file
+- file: vars.yaml
+# encrypted file
+# https://pkg.go.dev/go.mozilla.org/sops/v3/decrypt?tab=doc
+- sops: secretVars.sops.yaml
+
+# step by step executed
+run:
+# template with gomplate
+- template:
+  - "{{ .workspace }}/template"
+  vars: .
+  output: stderr
+
+- script: |
+    env | grep VARS
+    # cat $VARS
+    echo 1>&2 stderr
+  vars: .
+  output: stderr
+
+# say Hello!
+- script: echo "Hello from $(jq -r .name $VARS)!"
+  vars: .
+  output: stderr
+
+# $VARS environment variable points to temporary json file with current context vars
+# - script: |
+#     jq . $VARS
+#     # ping ya.ru
+#   output: stderr
+#   timeout: 1
+#   vars: .vars.prom
+
+# just a wrapper for a script:
+# jq -r .vars $VARS | helm template name chart --namespace test --repo 'https://kubernetes-charts.storage.googleapis.com/' --version version
+# - chart: prometheus-operator
+#   repo: https://kubernetes-charts.storage.googleapis.com/
+#   # version: 0.12.12
+#   namespace: prometheus
+#   name: test
+#   vars: .vars.prom
+#   output: stderr
+
+# helm template from local(git) chart
+# - chart: chart/dir
+#   namespace: flux
+#   name: flux
+#   vars: .vars.loki
+#   output: stdout
+
+# runs in parralel
+stacks:
+- test:
+  - subStack.*
+# stacks are searched by decreasing priority in $STACK, $ROOT, libs dirs
+# sub stacks me-397, staging & stacks which fit regexp me-4.* in env dir (regexp is always calculated)
+# - env:
+#   - me-397
+#   - me-4.*
+#   - staging
+# wildcard(regexp) include sorted by stack names
+# - monitoring:
+#   - test:
+#     - prometheus.*
+# include all folders as stacks
+# - .*
+# include kube-system/aws-auth stack
+# - kube-system:
+#   - aws-auth
+
+# include inline stack3
+- name: stack3
+  run:
+  - script: echo "Hello from $(jq -r .name $VARS)!"
+    vars: .
+    output: stdout
+  vars:
+    test: var
+  tags:
+  - testing_only
+
+tags:
+- *target
+- test
+- dev
+
+# Message to stderr when this stack is processing
+message: |
+  Install process for target: {{ .vars.target_name }}
+
+# $ROOT is a dir where stack tool is started
+# $STACK is a dir where this stack is located
+# dirs with additional stacks
+# inherited by children stacks
+libs:
+- $HOME/Downloads
+# remote git lib
+- git: git@gitlab.allabout.me:infra/gitops/env.git
+  commit: bad655ae8067008c889e5d67a5a08d558e80b70d
+  path: "{{ .vars.libs }}"
