@@ -36,6 +36,11 @@ build/stack: \
 	CGO_ENABLED=0 GOOS=${OS} GOARCH=${ARCH} go build -ldflags="-s -w" -o $@ ./cmd/stack
 ifeq (${OS}, linux)
 	# upx --brute $@
+	# upx $@
+endif
+
+ifeq (${USER}, maxim)
+	cp build/stack ~/work/scripts/stack3
 endif
 
 ## clean/stack: rm build/stack
