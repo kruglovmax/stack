@@ -25,18 +25,18 @@ var (
 type StackConfig struct {
 	fileName string
 
-	API        string              `json:"api,omitempty"`
-	Name       string              `json:"name,omitempty"`
-	Workspace  string              `json:"workspace,omitempty"`
-	Message    string              `json:"message,omitempty"`
-	Tags       []string            `json:"tags,omitempty"`
-	Vars       interface{}         `json:"vars,omitempty"`
-	VarsFrom   []map[string]string `json:"varsFrom,omitempty"`
-	Libs       []interface{}       `json:"libs,omitempty"`
-	Run        interface{}         `json:"run,omitempty"`
-	Stacks     []interface{}       `json:"stacks,omitempty"`
-	Logs       string              `json:"logs,omitempty"`
-	Conditions []string            `json:"conditions,omitempty"`
+	API        string                 `json:"api,omitempty"`
+	Name       string                 `json:"name,omitempty"`
+	Workspace  string                 `json:"workspace,omitempty"`
+	Message    string                 `json:"message,omitempty"`
+	Tags       []string               `json:"tags,omitempty"`
+	Vars       map[string]interface{} `json:"vars,omitempty"`
+	VarsFrom   []map[string]string    `json:"varsFrom,omitempty"`
+	Libs       []interface{}          `json:"libs,omitempty"`
+	Run        interface{}            `json:"run,omitempty"`
+	Stacks     []interface{}          `json:"stacks,omitempty"`
+	Logs       string                 `json:"logs,omitempty"`
+	Conditions []string               `json:"conditions,omitempty"`
 }
 
 // ToMap func

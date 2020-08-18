@@ -69,9 +69,11 @@ func NewConfigFromFile(fileName string) (config StackConfig) {
 
 	content, ioErr := ioutil.ReadFile(fileName)
 	if ioErr != nil {
+		log.Logger.Debug().
+			Msg(string(debug.Stack()))
 		log.Logger.Fatal().
 			Str("fileName", fileName).
-			Msg(ioErr.Error() + "\n" + string(debug.Stack()))
+			Msg(ioErr.Error())
 	}
 
 	config = NewConfigFromBytes(content)

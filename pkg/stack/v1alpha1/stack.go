@@ -9,21 +9,22 @@ import (
 
 // Stack type
 type Stack struct {
-	parentStack *Stack
-	config      StackConfig
-	appConfig   *config.AppConfig
-	runnable    bool
+	parentStack   *Stack
+	config        StackConfig
+	appConfig     *config.AppConfig
+	runnable      bool
+	varsModifiers []interface{}
 
-	API       string      `json:"api,omitempty"`
-	Name      string      `json:"name,omitempty"`
-	Workspace string      `json:"workspace,omitempty"`
-	Message   string      `json:"message,omitempty"`
-	Tags      []string    `json:"tags,omitempty"`
-	Vars      interface{} `json:"vars,omitempty"`
-	Libs      []string    `json:"libs,omitempty"`
-	Run       Run         `json:"run,omitempty"`
-	Stacks    []Stack     `json:"stacks,omitempty"`
-	Logs      log.Type    `json:"logs,omitempty"`
+	API       string                 `json:"api,omitempty"`
+	Name      string                 `json:"name,omitempty"`
+	Workspace string                 `json:"workspace,omitempty"`
+	Message   string                 `json:"message,omitempty"`
+	Tags      []string               `json:"tags,omitempty"`
+	Vars      map[string]interface{} `json:"vars,omitempty"`
+	Libs      []string               `json:"libs,omitempty"`
+	Run       Run                    `json:"run,omitempty"`
+	Stacks    []Stack                `json:"stacks,omitempty"`
+	Logs      log.Type               `json:"logs,omitempty"`
 }
 
 // Execute func

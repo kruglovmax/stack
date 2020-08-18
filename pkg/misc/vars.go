@@ -155,7 +155,7 @@ func SetRealKeys(vars interface{}) interface{} {
 }
 
 // CombineVars func
-func CombineVars(leftVars, rightVars interface{}) interface{} {
+func CombineVars(leftVars, rightVars interface{}) map[string]interface{} {
 	leftVars = SetRealKeys(leftVars)
 	rightVars = SetRealKeys(rightVars)
 	combinedVars := make(map[string]interface{})

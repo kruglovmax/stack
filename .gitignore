@@ -1,0 +1,7 @@
+gitcrypt-secret.key
+.tmp/
+__pycache__
+.vscode
+telepresence.log
+.idea
+build

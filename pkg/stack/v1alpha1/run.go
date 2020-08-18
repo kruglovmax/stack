@@ -31,7 +31,7 @@ func GetRunItemOutput(stack *Stack, item runItem, output *bufio.Scanner, done ch
 	for output.Scan() {
 		line := output.Text()
 		if isErr {
-			log.Logger.Error().Msg("SCRIPT STDERR: " + line)
+			log.Logger.Warn().Msg("SCRIPT STDERR: " + line)
 		} else if outputType != nil {
 			for _, v := range outputType {
 				switch v.(type) {
