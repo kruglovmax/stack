@@ -143,7 +143,7 @@ func (item *scriptItem) getScriptOutput(stack types.Stack, output *bufio.Scanner
 	}
 
 	if yml2var != "" {
-		var value interface{}
+		var value map[string]interface{}
 		err := yaml.Unmarshal([]byte(outBuffer.String()), &value)
 		misc.CheckIfErr(err)
 		switch {

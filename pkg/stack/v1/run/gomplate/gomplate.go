@@ -84,7 +84,7 @@ func (item *gomplateItem) Exec(parentWG *sync.WaitGroup, stack types.Stack, work
 			}
 		case map[string]interface{}:
 			if v.(map[string]interface{})["yml2var"] != nil {
-				var value interface{}
+				var value map[string]interface{}
 				yml2var := v.(map[string]interface{})["yml2var"].(string)
 				err := yaml.Unmarshal([]byte(parsedString), &value)
 				misc.CheckIfErr(err)
