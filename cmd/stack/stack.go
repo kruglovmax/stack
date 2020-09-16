@@ -13,25 +13,20 @@ import (
 	"time"
 
 	"github.com/davecgh/go-spew/spew"
-	"github.com/kruglovmax/stack/pkg/appconfig"
+	"github.com/kruglovmax/stack/pkg/app"
 	"github.com/kruglovmax/stack/pkg/log"
-	"github.com/kruglovmax/stack/pkg/misc"
-	stack "github.com/kruglovmax/stack/pkg/stack"
+	"github.com/kruglovmax/stack/pkg/stack"
 
 	"github.com/spf13/pflag"
-	"helm.sh/helm/v3/pkg/strvals"
 )
 
 const (
-	version = "v1.0.0-alpha1"
+	version = "v0.6.0"
 	product = "stack"
 )
 
 func main() {
 	rand.Seed(time.Now().UnixNano())
-
-	rootStack := stack.RootStack
-	appConfig := new(appconfig.AppConfig)
 
 	// Flag domain.
 	fs := pflag.NewFlagSet("default", pflag.ContinueOnError)
@@ -43,25 +38,23 @@ func main() {
 		fs.PrintDefaults()
 	}
 
-	var (
-		versionFlag = fs.Bool("version", false, "get version number")
-	)
+	versionFlag := fs.Bool("version", false, "get version number")
 
-	appConfig.LogFormat = fs.StringP("log-format", "l", "fmt", "change the log format.")
-	appConfig.Verbosity = fs.CountP("verb", "v", "verbosity")
-	appConfig.TagPatterns = fs.StringSliceP("tags-patterns", "t", []string{}, `Stack tags
-		Example:
-		--tags-patterns="cluster,dev,eu-central-1"`)
-	appConfig.CLIValues = fs.StringSliceP("set", "s", []string{}, `Additional vars
-		Example:
-		--set="name=value,topname.subname=value"`)
-	appConfig.VarFiles = fs.StringSliceP("file", "f", []string{}, `Files with additional vars
-		Example:
-		-f vars.yaml -f vars2.yaml`)
-	appConfig.Workspace = fs.StringP("workspace", "w", ".", `Working directory
-		Example:
-		--workspace="stackDir"
-		Default: "."`)
+	app.App.Config.LogFormat = fs.StringP("log-format", "l", "fmt", "change the log format(json, fmt).")
+	app.App.Config.Verbosity = fs.CountP("verb", "v", "verbosity")
+	app.App.Config.CLIValues = fs.StringSliceP("set", "s", []string{}, `Additional vars
+Example:
+--set="name=value,topname.subname=value"`)
+	app.App.Config.VarFiles = fs.StringSliceP("file", "f", []string{}, `Files with additional vars
+Example:
+-f vars.yaml -f vars2.yaml`)
+	app.App.Config.Workdir = fs.StringP("workdir", "w", ".", `Working directory
+Example:
+--workdir="stackDir"
+or
+-w stackDir`)
+	app.App.Config.WaitTimeout = fs.Duration("wait-timeout", 1*time.Minute,
+		"duration after which sync operations time out")
 
 	err := fs.Parse(os.Args[1:])
 	switch {
@@ -76,7 +69,9 @@ func main() {
 		os.Exit(0)
 	}
 
-	log.SetLevel(*appConfig.Verbosity)
+	log.SetFormat(*app.App.Config.LogFormat)
+
+	log.SetLevel(*app.App.Config.Verbosity)
 
 	pwd, err := os.Getwd()
 	if err != nil {
@@ -85,41 +80,43 @@ func main() {
 		log.Logger.Fatal().
 			Msg(err.Error())
 	}
-	if !filepath.IsAbs(*appConfig.Workspace) {
-		pwd := filepath.Join(pwd, *appConfig.Workspace)
-		appConfig.Workspace = &pwd
+	if !filepath.IsAbs(*app.App.Config.Workdir) {
+		pwd := filepath.Join(pwd, *app.App.Config.Workdir)
+		app.App.Config.Workdir = &pwd
 	}
-	if err := os.Chdir(*appConfig.Workspace); err != nil {
+	if err := os.Chdir(*app.App.Config.Workdir); err != nil {
 		log.Logger.Trace().
-			Msg(spew.Sdump(*appConfig.Workspace))
+			Msg(spew.Sdump(*app.App.Config.Workdir))
 		log.Logger.Debug().
 			Msg(string(debug.Stack()))
 		log.Logger.Fatal().
 			Msg(err.Error())
 	}
 
-	rootStack.FromFile(appConfig, "stack.yaml", nil)
+	stack.RunRootStack(*app.App.Config.Workdir)
 
-	for _, file := range *appConfig.VarFiles {
-		var vars interface{}
-		misc.LoadYAMLFromSopsFile(file, &vars)
-		rootStack.AddVarsLeft(vars)
-	}
+	// rootStack := stack.GetRootStack()
 
-	for _, str := range *appConfig.CLIValues {
-		vars, err := strvals.Parse(str)
-		if err != nil {
-			log.Logger.Trace().
-				Msg(spew.Sdump(str))
-			log.Logger.Debug().
-				Msg(string(debug.Stack()))
-			log.Logger.Fatal().
-				Msg(err.Error())
-		}
-		rootStack.AddVarsLeft(vars)
-	}
+	// for _, file := range *app.App.Config.VarFiles {
+	// 	var vars interface{}
+	// 	misc.LoadYAMLFromSopsFile(file, &vars)
+	// 	rootStack.AddRawVarsLeft(vars)
+	// }
 
-	rootStack.Execute()
+	// for _, str := range *app.App.Config.CLIValues {
+	// 	vars, err := strvals.Parse(str)
+	// 	if err != nil {
+	// 		log.Logger.Trace().
+	// 			Msg(spew.Sdump(str))
+	// 		log.Logger.Debug().
+	// 			Msg(string(debug.Stack()))
+	// 		log.Logger.Fatal().
+	// 			Msg(err.Error())
+	// 	}
+	// 	rootStack.AddRawVarsLeft(vars)
+	// }
+
+	// rootStack.Execute()
 
 	os.Exit(0)
 }

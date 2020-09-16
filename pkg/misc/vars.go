@@ -12,7 +12,7 @@ import (
 DeleteKey func
 */
 func DeleteKey(vars *interface{}, key string) {
-	key = strings.TrimRight(key, "+")
+	key = strings.TrimRight(key, "~")
 	if len(key) == 0 {
 		log.Logger.Trace().
 			Msg(spew.Sdump(vars))
@@ -24,7 +24,7 @@ func DeleteKey(vars *interface{}, key string) {
 	switch (*vars).(type) {
 	case map[string]interface{}:
 		for k := range (*vars).(map[string]interface{}) {
-			if strings.TrimRight(k, "+") == key {
+			if strings.TrimRight(k, "~") == key {
 				delete((*vars).(map[string]interface{}), k)
 			}
 		}
@@ -45,7 +45,7 @@ func GetRealVars(vars interface{}) interface{} {
 	case map[string]interface{}:
 		result := make(map[string]interface{})
 		for k, v := range vars.(map[string]interface{}) {
-			result[strings.TrimRight(k, "+")] = GetRealVars(v)
+			result[strings.TrimRight(k, "~")] = GetRealVars(v)
 		}
 		return result
 	case []interface{}:
@@ -63,7 +63,7 @@ func GetRealVars(vars interface{}) interface{} {
 GetVar func
 */
 func GetVar(vars interface{}, key string) (interface{}, bool) {
-	key = strings.TrimRight(key, "+")
+	key = strings.TrimRight(key, "~")
 	if len(key) == 0 {
 		log.Logger.Trace().
 			Msg(spew.Sdump(vars))
@@ -75,7 +75,7 @@ func GetVar(vars interface{}, key string) (interface{}, bool) {
 	switch vars.(type) {
 	case map[string]interface{}:
 		for k, v := range vars.(map[string]interface{}) {
-			if strings.TrimRight(k, "+") == key {
+			if strings.TrimRight(k, "~") == key {
 				return v, true
 			}
 		}
@@ -94,7 +94,7 @@ func GetVar(vars interface{}, key string) (interface{}, bool) {
 GetRealKeyName func
 */
 func GetRealKeyName(vars interface{}, key string) string {
-	key = strings.TrimRight(key, "+")
+	key = strings.TrimRight(key, "~")
 	if len(key) == 0 {
 		log.Logger.Trace().
 			Msg(spew.Sdump(vars))
@@ -107,7 +107,7 @@ func GetRealKeyName(vars interface{}, key string) string {
 	switch vars.(type) {
 	case map[string]interface{}:
 		for k := range vars.(map[string]interface{}) {
-			if strings.TrimRight(k, "+") == key {
+			if strings.TrimRight(k, "~") == key {
 				return k
 			}
 		}
@@ -134,7 +134,7 @@ func SetRealKeys(vars interface{}) interface{} {
 					abc := value.(map[string]interface{})
 					for k, v := range value.(map[string]interface{}) {
 						if k[len(k)-1] != '+' {
-							abc[k+"+"] = v
+							abc[k+"~"] = v
 							delete(abc, k)
 						}
 					}
@@ -181,7 +181,7 @@ func CombineVars(leftVars, rightVars interface{}) map[string]interface{} {
 					case []interface{}:
 						switch leftValue.(type) {
 						case []interface{}:
-							if k := strings.TrimRight(leftKey, "+"); k+"++" == leftKey {
+							if k := strings.TrimRight(leftKey, "~"); k+"~~" == leftKey {
 								combinedVars[keyTmp] = append(leftValue.([]interface{}), valueTmp.([]interface{})...)
 								DeleteKey(&rightVars, keyTmp)
 							} else {

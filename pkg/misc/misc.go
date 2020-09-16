@@ -2,13 +2,22 @@ package misc
 
 import (
 	"encoding/json"
+	"fmt"
 	"io/ioutil"
+	"os"
+	"path/filepath"
 	"regexp"
 	"runtime/debug"
 	"strconv"
 	"strings"
+	"sync"
+	"time"
 
 	"github.com/davecgh/go-spew/spew"
+	"github.com/go-git/go-git/v5"
+	"github.com/go-git/go-git/v5/plumbing"
+	"github.com/kruglovmax/stack/pkg/app"
+	"github.com/kruglovmax/stack/pkg/consts"
 	"github.com/kruglovmax/stack/pkg/log"
 	sopsDecrypt "go.mozilla.org/sops/v3/decrypt"
 	"sigs.k8s.io/yaml"
@@ -68,6 +77,12 @@ func ToYAML(object interface{}) string {
 	return string(y)
 }
 
+// ToInterface func
+func ToInterface(object interface{}) (result interface{}) {
+	LoadYAML(ToJSON(object), &result)
+	return
+}
+
 // ToJSON func
 func ToJSON(object interface{}) string {
 	y, err := json.Marshal(object)
@@ -82,14 +97,112 @@ func ToJSON(object interface{}) string {
 	return string(y)
 }
 
-// GetRunItemOutputType func
-func GetRunItemOutputType(item interface{}) []interface{} {
-	result, ok := (item).(map[string]interface{})["output"].([]interface{})
-	if ok {
-		return result
+// UniqueStr func
+func UniqueStr(input []string) (output []string) {
+	output = make([]string, 0, len(input))
+	keys := make(map[string]bool)
+	for _, entry := range input {
+		if _, ok := keys[entry]; !ok {
+			keys[entry] = true
+			output = append(output, entry)
+		}
 	}
-	return nil
+	return
 }
+
+// WaitTimeout waits for the waitgroup for the specified max timeout.
+// Returns true if waiting timed out.
+func WaitTimeout(wg *sync.WaitGroup, timeout time.Duration) bool {
+	c := make(chan struct{})
+	go func() {
+		defer close(c)
+		wg.Wait()
+	}()
+	select {
+	case <-c:
+		return false // completed normally
+	case <-time.After(timeout):
+		return true // timed out
+	}
+}
+
+// FindPath func
+func FindPath(dir string, searchPaths ...string) (output string, err error) {
+	if filepath.IsAbs(dir) && PathIsDir(dir) {
+		output, _ = filepath.Abs(dir)
+		err = nil
+		return
+	}
+	for _, searchPath := range searchPaths {
+		var files []os.FileInfo
+		files, err = ioutil.ReadDir(searchPath)
+		if err != nil {
+			return
+		}
+		for _, fileItem := range files {
+			if filepath.Base(fileItem.Name()) == dir && fileItem.IsDir() {
+				output = filepath.Join(searchPath, fileItem.Name())
+				return
+			}
+		}
+	}
+	err = fmt.Errorf(consts.MessagePathNotFoundInSearchPaths, dir, spew.Sdump(searchPaths))
+	return
+}
+
+// CheckIfErr func
+func CheckIfErr(err error) {
+	if err != nil {
+		log.Logger.Debug().
+			Msg(string(debug.Stack()))
+		log.Logger.Fatal().
+			Msg(err.Error())
+	}
+}
+
+// GitClone func
+func GitClone(gitClonePath, gitURL, gitRef string) (err error) {
+	app.App.Mutex.GitWorkMutex.Lock()
+	defer app.App.Mutex.GitWorkMutex.Unlock()
+
+	os.MkdirAll(gitClonePath, os.ModePerm)
+	var gitRepo *git.Repository
+	gitRepo, err = git.PlainClone(gitClonePath, false, &git.CloneOptions{
+		URL:      gitURL,
+		Progress: os.Stderr,
+	})
+	if err == git.ErrRepositoryAlreadyExists {
+		err = nil
+		return
+		// fetch repo
+		// gitRepo, err = git.PlainOpen(gitClonePath)
+		// if err != nil {
+		// 	return
+		// }
+		// err = gitRepo.Fetch(&git.FetchOptions{Progress: os.Stderr})
+	}
+	if err != nil && err != git.NoErrAlreadyUpToDate {
+		return
+	}
+	var gitWorkTree *git.Worktree
+	gitWorkTree, err = gitRepo.Worktree()
+	if err != nil {
+		return
+	}
+	err = gitWorkTree.Checkout(&git.CheckoutOptions{
+		Hash: plumbing.NewHash(gitRef),
+	})
+	return
+}
+
+// GetRunItemOutputType func
+// func GetRunItemOutputType(item interface{}) []interface{} {
+// 	result, ok := (item).(map[string]interface{})["output"].([]interface{})
+// 	if ok {
+// 		return result
+// 	}
+// 	return nil
+// }
 
 // GetObjectValue func
 func GetObjectValue(object interface{}, key string) interface{} {
@@ -128,23 +241,6 @@ func GetObject(root interface{}, path string) interface{} {
 	return root
 }
 
-// UniqueStrings Returns unique string items in a slice
-// TODO FIX BUG HERE disable items sorting
-func UniqueStrings(slice []string) []string {
-	// create a map with all the values as key
-	uniqMap := make(map[string]struct{})
-	for _, v := range slice {
-		uniqMap[v] = struct{}{}
-	}
-
-	// turn the map keys into a slice
-	uniqSlice := make([]string, 0, len(uniqMap))
-	for v := range uniqMap {
-		uniqSlice = append(uniqSlice, v)
-	}
-	return uniqSlice
-}
-
 // GetDirsByRegexp func
 func GetDirsByRegexp(pwd string, pattern string) (dirs []string) {
 	// ^(?:monitoring|(.*))$
@@ -170,35 +266,91 @@ func GetDirsByRegexp(pwd string, pattern string) (dirs []string) {
 	return
 }
 
-// TagsMatcher func
-func TagsMatcher(tags, patterns []string) (result bool) {
-	// if tags == nil {
-	// 	result = true
-	// 	return
-	// }
-	matches := make(map[string]bool)
-	result = true
-	for _, tag := range tags {
-		result = false
-		for _, pattern := range patterns {
-			matched, err := regexp.Match("^("+pattern+")$", []byte(tag))
+// ReadFileFromPath func
+func ReadFileFromPath(path string) (output string) {
+	loadTemplateFromWalkPath := func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+		if PathIsExists(path) && !info.IsDir() {
+			content, err := ioutil.ReadFile(path)
 			if err != nil {
-				log.Logger.Trace().
-					Msg(spew.Sdump(pattern, tag))
-				log.Logger.Debug().
-					Msg(string(debug.Stack()))
-				log.Logger.Fatal().
-					Msg(err.Error())
+				return err
 			}
-			if matched {
-				matches[pattern] = true
-				result = true
-				break
-			}
+			output = output + string(content) + "\n"
 		}
-		if len(matches) == len(patterns) {
-			break
-		}
+		return nil
+	}
+
+	fullpath, err := filepath.Abs(path)
+	if PathIsExists(fullpath) && (err == nil) {
+		filepath.Walk(fullpath, loadTemplateFromWalkPath)
+		return output
+	}
+	CheckIfErr(err)
+	return ""
+}
+
+// PathIsExists returns whether the given file or directory exists
+func PathIsExists(path string) bool {
+	_, err := os.Stat(path)
+	if err == nil {
+		return true
+	}
+	return false
+}
+
+// PathIsDir func
+func PathIsDir(path string) bool {
+	fi, err := os.Stat(path)
+	if err != nil {
+		return false
+	}
+	switch mode := fi.Mode(); {
+	case mode.IsDir():
+		return true
+	default:
+		return false
+	}
+}
+
+// FindStackFileInDir func
+func FindStackFileInDir(dir string) (stackFile string) {
+	switch {
+	case PathIsExists(filepath.Join(dir, "stack.yaml")):
+		stackFile = filepath.Clean(filepath.Join(dir, "stack.yaml"))
+	case PathIsExists(filepath.Join(dir, "stack.yml")):
+		stackFile = filepath.Clean(filepath.Join(dir, "stack.yml"))
+	case PathIsExists(filepath.Join(dir, "stack.json")):
+		stackFile = filepath.Clean(filepath.Join(dir, "stack.json"))
+	default:
+		log.Logger.Debug().
+			Msg(string(debug.Stack()))
+		log.Logger.Fatal().
+			Str("workdir", dir).
+			Msg("Stack file is not found in")
 	}
 	return
+}
+
+// GetDirName func
+func GetDirName(fullpath string) (dirName string) {
+	dirName = filepath.Base(filepath.Dir(fullpath))
+	return
+}
+
+// GetDirPath func
+func GetDirPath(fullpath string) (dirPath string) {
+	dirPath = filepath.Dir(fullpath)
+	return
+}
+
+// KeyIsExist func
+func KeyIsExist(str string, stringMap map[string]interface{}) bool {
+	for b := range stringMap {
+		if b == str {
+			return true
+		}
+	}
+	return false
 }

@@ -39,14 +39,7 @@ var levels = map[interface{}]zerolog.Level{
 }
 
 // Logger var
-var Logger = zerolog.New(
-	zerolog.ConsoleWriter{
-		Out:        os.Stderr,
-		TimeFormat: time.RFC3339Nano,
-	}).With().Timestamp().Logger()
-
-func init() {
-}
+var Logger zerolog.Logger
 
 // SetLevel func
 // "panic": zerolog.PanicLevel
@@ -62,4 +55,32 @@ func SetLevel(level interface{}) {
 	} else {
 		zerolog.SetGlobalLevel(zerolog.TraceLevel)
 	}
+}
+
+// SetFormat func
+func SetFormat(format string) {
+	switch format {
+	case "json":
+		Logger = zerolog.New(os.Stderr).With().Timestamp().Logger()
+	case "fmt":
+		Logger = zerolog.New(
+			zerolog.ConsoleWriter{
+				Out:        os.Stderr,
+				TimeFormat: time.RFC3339Nano,
+			}).With().Timestamp().Logger()
+	default:
+		Logger = zerolog.New(
+			zerolog.ConsoleWriter{
+				Out:        os.Stderr,
+				TimeFormat: time.RFC3339Nano,
+			}).With().Timestamp().Logger()
+	}
+}
+
+func init() {
+	Logger = zerolog.New(
+		zerolog.ConsoleWriter{
+			Out:        os.Stderr,
+			TimeFormat: time.RFC3339Nano,
+		}).With().Timestamp().Logger()
 }
