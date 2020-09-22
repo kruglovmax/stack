@@ -4,6 +4,7 @@ import (
 	"github.com/kruglovmax/stack/pkg/stack/v1/run/gitclone"
 	"github.com/kruglovmax/stack/pkg/stack/v1/run/gomplate"
 	"github.com/kruglovmax/stack/pkg/stack/v1/run/group"
+	"github.com/kruglovmax/stack/pkg/stack/v1/run/jsonnet"
 	"github.com/kruglovmax/stack/pkg/stack/v1/run/pongo2"
 	"github.com/kruglovmax/stack/pkg/stack/v1/run/script"
 	"github.com/kruglovmax/stack/pkg/types"
@@ -38,6 +39,8 @@ func (parser *runItemParser) ParseRunItem(stack types.Stack, item interface{}) (
 		switch {
 		case item.(map[string]interface{})["gomplate"] != nil:
 			output = gomplate.Parse(stack, item.(map[string]interface{}))
+		case item.(map[string]interface{})["jsonnet"] != nil:
+			output = jsonnet.Parse(stack, item.(map[string]interface{}))
 		case item.(map[string]interface{})["pongo2"] != nil:
 			output = pongo2.Parse(stack, item.(map[string]interface{}))
 		case item.(map[string]interface{})["script"] != nil:

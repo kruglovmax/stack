@@ -115,6 +115,11 @@ locals:  # локальные ключи, актуальны только в т�
   output:
   - stderr
 
+- jsonnet:
+  - jsonnet/func.jsonnet
+  output:
+  - stderr
+
 - pongo2:
   - tpl/jinjaTemplate.jinja2
   output:

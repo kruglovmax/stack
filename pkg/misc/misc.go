@@ -318,6 +318,20 @@ func PathIsDir(path string) bool {
 	}
 }
 
+// PathIsFile func
+func PathIsFile(path string) bool {
+	fi, err := os.Stat(path)
+	if err != nil {
+		return false
+	}
+	switch mode := fi.Mode(); {
+	case mode.IsRegular():
+		return true
+	default:
+		return false
+	}
+}
+
 // FindStackFileInDir func
 func FindStackFileInDir(dir string) (stackFile string) {
 	dirBase := filepath.Base(dir)
