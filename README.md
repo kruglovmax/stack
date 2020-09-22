@@ -1,6 +1,6 @@
 # stack tool ![stack tool][logo]
 
-Stack is Tool About Creating Kindda
+Stack is a Tool About Creating Kindda
 
 **Overview:**
 
@@ -106,13 +106,12 @@ locals:  # локальные ключи, актуальны только в т�
   - strvar: namespace
 
 - gomplate: |-
-    {{ .vars.monitoring_grafana.secrets | toJSON }}
+    {{ .vars.monitoring_grafana | toJSON }}
   output:
-  - yml2var: monitoringSecrets
-  when: ""
+  - yml2var: monitoringGrafana
 
 - gomplate:
-  - ../../../_helpers/getEnvVars.gtpl
+  - templates/getEnvVars.gtpl
   output:
   - stderr
 
@@ -124,6 +123,18 @@ locals:  # локальные ключи, актуальны только в т�
 - script: scripts/example.sh
   output:
   - stdout
+
+- group:
+  - script: |-
+      ping google.com -c 5
+    output:
+    - stderr
+  - script: |-
+      ping example.com -c 5
+    output:
+    - stderr
+  parallel: true
+  runTimeout: 10s
 ```
 
 ### stacks
@@ -144,7 +155,7 @@ stacks:
 ### when
 
 ```yaml
-when: eq .vars.test1 "value"
+when: vars.test1 == "value"
 ```
 
 ### wait
@@ -152,7 +163,7 @@ when: eq .vars.test1 "value"
 Стек будет ждать выполнения условия время заданное в wait_timeout (default: 5 min)
 
 ```yaml
-when: eq .flags.test1 "value1"
+wait: flags.test1 == "value1"
 ```
 
 ---
