@@ -26,12 +26,12 @@ type app struct {
 }
 
 type appConfig struct {
-	CLIValues   *[]string
-	LogFormat   *string        `json:"LogFormat,omitempty"`
-	VarFiles    *[]string      `json:"VarFiles,omitempty"`
-	Verbosity   *int           `json:"Verbosity,omitempty"`
-	WaitTimeout *time.Duration `json:"WaitTimeout,omitempty"`
-	Workdir     *string        `json:"Workdir,omitempty"`
+	CLIValues      *[]string
+	LogFormat      *string        `json:"LogFormat,omitempty"`
+	VarFiles       *[]string      `json:"VarFiles,omitempty"`
+	Verbosity      *int           `json:"Verbosity,omitempty"`
+	DefaultTimeout *time.Duration `json:"DefaultTimeout,omitempty"`
+	Workdir        *string        `json:"Workdir,omitempty"`
 }
 
 type appMutex struct {

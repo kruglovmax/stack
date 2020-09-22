@@ -8,7 +8,6 @@ import (
 	"github.com/davecgh/go-spew/spew"
 	"github.com/google/cel-go/cel"
 	"github.com/google/cel-go/checker/decls"
-	"github.com/kruglovmax/stack/pkg/app"
 	"github.com/kruglovmax/stack/pkg/log"
 	"github.com/kruglovmax/stack/pkg/misc"
 	"github.com/kruglovmax/stack/pkg/types"
@@ -26,7 +25,7 @@ func When(stack types.Stack, condition string) (result bool) {
 }
 
 // Wait func
-func Wait(stack types.Stack, condition string) (result bool) {
+func Wait(stack types.Stack, condition string, timeout time.Duration) (result bool) {
 	if condition == "" {
 		result = true
 		return
@@ -40,11 +39,11 @@ func Wait(stack types.Stack, condition string) (result bool) {
 	select {
 	case <-waitLoopDone:
 		result = true
-	case <-time.After(*app.App.Config.WaitTimeout):
+	case <-time.After(timeout):
 		log.Logger.Debug().
 			Msg(string(debug.Stack()))
 		log.Logger.Fatal().
-			Str("timeout", fmt.Sprintf("%s", *app.App.Config.WaitTimeout)).
+			Str("timeout", fmt.Sprintf("%s", timeout)).
 			Str("in stack", stack.GetWorkdir()).
 			Str("condition", condition).
 			Msg("Waiting failed")
@@ -80,7 +79,13 @@ func checkCondition(stack types.Stack, condition string, varsMap map[string]inte
 		log.Logger.Debug().
 			Msg(string(debug.Stack()))
 	}
-	misc.CheckIfErr(iss.Err())
+	if iss.Err() != nil {
+		log.Logger.Debug().
+			Str("condition", condition).
+			Str("in stack", stack.GetWorkdir()).
+			Msgf("Error %s\n", iss.Err().Error())
+		return
+	}
 	prg, err := env.Program(ast)
 	misc.CheckIfErr(err)
 	out, _, err := prg.Eval(varsMap)

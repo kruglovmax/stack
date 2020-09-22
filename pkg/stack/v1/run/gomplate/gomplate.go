@@ -1,12 +1,14 @@
 package gomplate
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"runtime/debug"
 	"strings"
 	"sync"
 	"text/template"
+	"time"
 
 	"github.com/Jeffail/gabs/v2"
 	"github.com/davecgh/go-spew/spew"
@@ -25,36 +27,62 @@ import (
 
 // gomplateItem type
 type gomplateItem struct {
-	Template string        `json:"gomplate,omitempty"`
-	Vars     interface{}   `json:"vars,omitempty"`
-	Output   []interface{} `json:"output,omitempty"`
-	When     string        `json:"when,omitempty"`
-	Wait     string        `json:"wait,omitempty"`
+	Template    string        `json:"gomplate,omitempty"`
+	Vars        interface{}   `json:"vars,omitempty"`
+	Output      []interface{} `json:"output,omitempty"`
+	When        string        `json:"when,omitempty"`
+	Wait        string        `json:"wait,omitempty"`
+	RunTimeout  time.Duration `json:"runTimeout,omitempty"`
+	WaitTimeout time.Duration `json:"waitTimeout,omitempty"`
 }
 
 // Exec func
-func (item *gomplateItem) Exec(parentWG *sync.WaitGroup, stack types.Stack, workdir string) {
+func (item *gomplateItem) Exec(parentWG *sync.WaitGroup, stack types.Stack) {
 	if parentWG != nil {
 		defer parentWG.Done()
+	}
+	if !conditions.Wait(stack, item.Wait, item.WaitTimeout) {
+		return
 	}
 	if !conditions.When(stack, item.When) {
 		return
 	}
-	if !conditions.Wait(stack, item.Wait) {
-		return
-	}
 	app.App.Mutex.CurrentWorkDirMutex.Lock()
-	os.Chdir(workdir)
+	os.Chdir(stack.GetWorkdir())
 	var parsedString string
 	switch item.Vars.(type) {
 	case map[string]interface{}:
-		parsedString = processString(item.Vars.(map[string]interface{}), item.Template)
+		var wg sync.WaitGroup
+		wg.Add(1)
+		parsedString = processString(&wg, item.Vars.(map[string]interface{}), item.Template)
+		if misc.WaitTimeout(&wg, item.RunTimeout) {
+			log.Logger.Fatal().
+				Str("stack", stack.GetWorkdir()).
+				Str("timeout", fmt.Sprint(item.RunTimeout)).
+				Msg("Gomplate waiting failed")
+		}
 	case string:
 		vars, err := dotnotation.Get(stack.GetView(), item.Vars.(string))
 		misc.CheckIfErr(err)
-		parsedString = processString(vars, item.Template)
+		var wg sync.WaitGroup
+		wg.Add(1)
+		parsedString = processString(&wg, vars, item.Template)
+		if misc.WaitTimeout(&wg, item.RunTimeout) {
+			log.Logger.Fatal().
+				Str("stack", stack.GetWorkdir()).
+				Str("timeout", fmt.Sprint(item.RunTimeout)).
+				Msg("Gomplate waiting failed")
+		}
 	case nil:
-		parsedString = processString(stack.GetView(), item.Template)
+		var wg sync.WaitGroup
+		wg.Add(1)
+		parsedString = processString(&wg, stack.GetView(), item.Template)
+		if misc.WaitTimeout(&wg, item.RunTimeout) {
+			log.Logger.Fatal().
+				Str("stack", stack.GetWorkdir()).
+				Str("timeout", fmt.Sprint(item.RunTimeout)).
+				Msg("Script waiting failed")
+		}
 	default:
 		log.Logger.Trace().
 			Msg(spew.Sdump(item))
@@ -161,18 +189,20 @@ func (item *gomplateItem) Exec(parentWG *sync.WaitGroup, stack types.Stack, work
 }
 
 // Parse func
-func Parse(workDir string, item interface{}) types.RunItem {
-	tmplItem := item.(map[string]interface{})
+func Parse(stack types.Stack, item map[string]interface{}) types.RunItem {
+	app.App.Mutex.CurrentWorkDirMutex.Lock()
+	defer app.App.Mutex.CurrentWorkDirMutex.Unlock()
+	os.Chdir(stack.GetWorkdir())
 	templateLoader := func() string {
-		switch tmplItem["gomplate"].(type) {
+		switch item["gomplate"].(type) {
 		case string:
-			return tmplItem["gomplate"].(string)
+			return item["gomplate"].(string)
 		case []interface{}:
 			var resultTemplate string
-			for _, path := range tmplItem["gomplate"].([]interface{}) {
+			for _, path := range item["gomplate"].([]interface{}) {
 				path := path.(string)
 				if !filepath.IsAbs(path) {
-					path = filepath.Join(workDir, path)
+					path = filepath.Join(stack.GetWorkdir(), path)
 				}
 				resultTemplate = resultTemplate + misc.ReadFileFromPath(path)
 			}
@@ -189,21 +219,38 @@ func Parse(workDir string, item interface{}) types.RunItem {
 
 	output := new(gomplateItem)
 	output.Template = templateLoader
-	output.Vars = tmplItem["vars"]
-	output.Output = (item).(map[string]interface{})["output"].([]interface{})
-	whenCondition := (item).(map[string]interface{})["when"]
-	waitCondition := (item).(map[string]interface{})["wait"]
+	output.Vars = item["vars"]
+	output.Output = item["output"].([]interface{})
+	whenCondition := item["when"]
+	waitCondition := item["wait"]
 	if whenCondition != nil {
 		output.When = whenCondition.(string)
 	}
 	if waitCondition != nil {
 		output.Wait = waitCondition.(string)
 	}
+	var err error
+	runTimeout := item["runTimeout"]
+	output.RunTimeout = *app.App.Config.DefaultTimeout
+	if runTimeout != nil {
+		output.RunTimeout, err = time.ParseDuration(runTimeout.(string))
+		misc.CheckIfErr(err)
+	}
+	waitTimeout := item["waitTimeout"]
+	output.WaitTimeout = *app.App.Config.DefaultTimeout
+	if waitTimeout != nil {
+		output.WaitTimeout, err = time.ParseDuration(waitTimeout.(string))
+		misc.CheckIfErr(err)
+	}
 
 	return output
 }
 
-func processString(rootObject interface{}, str string) string {
+func processString(parentWG *sync.WaitGroup, rootObject interface{}, str string) string {
+	if parentWG != nil {
+		defer parentWG.Done()
+	}
+
 	var gtpl *gomplateTmpl.Template
 	root := template.New("root")
 	funcMap := gomplate.Funcs(&gomplateData.Data{})

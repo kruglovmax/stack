@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime/debug"
+	"sync"
 
 	"github.com/flytam/filenamify"
 	"github.com/kruglovmax/stack/pkg/app"
@@ -67,7 +68,12 @@ func parseLibsItem(input interface{}, workdir string) (libPath string, err error
 			if err != nil {
 				return
 			}
-			err = misc.GitClone(gitClonePath, gitURL, gitRef)
+
+			var wg sync.WaitGroup
+			wg.Add(1)
+			misc.GitClone(&wg, gitClonePath, gitURL, gitRef)
+			misc.WaitTimeout(&wg, *app.App.Config.DefaultTimeout)
+
 			libPath = filepath.Clean(filepath.Join(gitClonePath, gitPath))
 			if !misc.PathIsDir(libPath) {
 				err = fmt.Errorf(consts.MessageLibsGitBadPathInRepo, gitPath, gitURL)

@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"runtime/debug"
 	"sync"
+	"time"
 
 	"github.com/imdario/mergo"
 	"github.com/kruglovmax/stack/pkg/app"
@@ -13,7 +14,7 @@ import (
 	"github.com/kruglovmax/stack/pkg/log"
 	"github.com/kruglovmax/stack/pkg/misc"
 	"github.com/kruglovmax/stack/pkg/stack/v1/libs"
-	"github.com/kruglovmax/stack/pkg/stack/v1/run"
+	"github.com/kruglovmax/stack/pkg/stack/v1/run/parser"
 	"github.com/kruglovmax/stack/pkg/stack/v1/schema"
 	"github.com/kruglovmax/stack/pkg/stack/v1/vars"
 	"github.com/kruglovmax/stack/pkg/types"
@@ -28,9 +29,10 @@ type Stack struct {
 	execWG     sync.WaitGroup
 	postExecWG sync.WaitGroup
 
-	config stackInputYAML
+	config        stackInputYAML
+	runItemParser types.RunItemParser
+	parentStack   types.Stack
 
-	ParentStack types.Stack
 	API         string             //++
 	Name        string             //++
 	Vars        *types.StackVars   //++
@@ -44,25 +46,27 @@ type Stack struct {
 	Stacks      []types.Stack      //++
 	When        string             //++
 	Wait        string             //++
+	WaitTimeout time.Duration
 }
 
 // YAML view of StackConfig
 type stackInputYAML struct {
 	workdir string
 
-	API      string                 `json:"api,omitempty"`
-	Name     string                 `json:"name,omitempty"`
-	Vars     map[string]interface{} `json:"vars,omitempty"`
-	VarsFrom []map[string]string    `json:"varsFrom,omitempty"`
-	Flags    map[string]interface{} `json:"flags,omitempty"`
-	Locals   map[string]interface{} `json:"locals,omitempty"`
-	Libs     []interface{}          `json:"libs,omitempty"`
-	PreRun   []interface{}          `json:"preRun,omitempty"`
-	Run      []interface{}          `json:"run,omitempty"`
-	PostRun  []interface{}          `json:"postRun,omitempty"`
-	Stacks   []interface{}          `json:"stacks,omitempty"`
-	When     string                 `json:"when,omitempty"`
-	Wait     string                 `json:"wait,omitempty"`
+	API         string                 `json:"api,omitempty"`
+	Name        string                 `json:"name,omitempty"`
+	Vars        map[string]interface{} `json:"vars,omitempty"`
+	VarsFrom    []map[string]string    `json:"varsFrom,omitempty"`
+	Flags       map[string]interface{} `json:"flags,omitempty"`
+	Locals      map[string]interface{} `json:"locals,omitempty"`
+	Libs        []interface{}          `json:"libs,omitempty"`
+	PreRun      []interface{}          `json:"preRun,omitempty"`
+	Run         []interface{}          `json:"run,omitempty"`
+	PostRun     []interface{}          `json:"postRun,omitempty"`
+	Stacks      []interface{}          `json:"stacks,omitempty"`
+	When        string                 `json:"when,omitempty"`
+	Wait        string                 `json:"wait,omitempty"`
+	WaitTimeout string                 `json:"waitTimeout,omitempty"`
 }
 
 type stackOutputValues struct {
@@ -75,16 +79,16 @@ type stackOutputValues struct {
 
 // AddRawVarsLeft func
 func (stack *Stack) AddRawVarsLeft(v map[string]interface{}) {
-	// stack.Vars.Mux.Lock()
+	stack.Vars.Mux.Lock()
+	defer stack.Vars.Mux.Unlock()
 	stack.Vars = vars.CombineVars(vars.ParseVars(v), stack.Vars)
-	// stack.Vars.Mux.Unlock()
 }
 
 // AddRawVarsRight func
 func (stack *Stack) AddRawVarsRight(v map[string]interface{}) {
-	// stack.Vars.Mux.Lock()
+	stack.Vars.Mux.Lock()
+	defer stack.Vars.Mux.Unlock()
 	stack.Vars = vars.CombineVars(stack.Vars, vars.ParseVars(v))
-	// stack.Vars.Mux.Unlock()
 }
 
 // GetAPI func
@@ -100,6 +104,11 @@ func (stack *Stack) GetLibs() []string {
 // GetName func
 func (stack *Stack) GetName() string {
 	return stack.Name
+}
+
+// GetRunItemsParser func
+func (stack *Stack) GetRunItemsParser() types.RunItemParser {
+	return stack.runItemParser
 }
 
 // GetVars func
@@ -118,15 +127,23 @@ func (stack *Stack) GetLocals() *types.StackLocals {
 }
 
 // GetView func
-func (stack *Stack) GetView() interface{} {
-	output := new(stackOutputValues)
+func (stack *Stack) GetView() (result interface{}) {
+	var output stackOutputValues
+
 	output.API = stack.API
 	output.Name = stack.Name
 	output.Vars = stack.Vars.Vars
 	output.Flags = stack.Flags.Vars
 	output.Locals = stack.Locals.Vars
 
-	return misc.ToInterface(output)
+	result = misc.ToInterface(output)
+
+	return
+}
+
+// GetWaitTimeout func
+func (stack *Stack) GetWaitTimeout() time.Duration {
+	return stack.WaitTimeout
 }
 
 // GetWorkdir func
@@ -163,7 +180,8 @@ func (stack *Stack) LoadFromString(stackYAML string, parentStack types.Stack) {
 	misc.LoadYAML(stackYAML, &stack.config)
 	switch stack.config.API {
 	case "v1":
-		stack.ParentStack = parentStack
+		stack.runItemParser = parser.RunItemParser
+		stack.parentStack = parentStack
 		stack.Name = stack.config.Name
 		stack.Workdir = parentStack.GetWorkdir()
 		parseInputYAML(stack, stack.config, parentStack)
@@ -198,7 +216,8 @@ func (stack *Stack) LoadFromFile(stackFile string, parentStack types.Stack) {
 	misc.LoadYAMLFromFile(stackFile, &stack.config)
 	switch stack.config.API {
 	case "v1":
-		stack.ParentStack = parentStack
+		stack.runItemParser = parser.RunItemParser
+		stack.parentStack = parentStack
 		stack.Name = misc.GetDirName(stackFile)
 		stack.Workdir = misc.GetDirPath(stackFile)
 		parseInputYAML(stack, stack.config, parentStack)
@@ -223,7 +242,7 @@ func (stack *Stack) PreExec(parentWG *sync.WaitGroup) {
 	for _, runItem := range stack.PreRun {
 		var wg sync.WaitGroup
 		wg.Add(1)
-		go runItem.Exec(&wg, stack, stack.Workdir)
+		go runItem.Exec(&wg, stack)
 		wg.Wait()
 	}
 }
@@ -239,7 +258,7 @@ func (stack *Stack) Exec(parentWG *sync.WaitGroup) {
 	for _, runItem := range stack.Run {
 		var wg sync.WaitGroup
 		wg.Add(1)
-		go runItem.Exec(&wg, stack, stack.Workdir)
+		go runItem.Exec(&wg, stack)
 		wg.Wait()
 	}
 }
@@ -255,7 +274,7 @@ func (stack *Stack) PostExec(parentWG *sync.WaitGroup) {
 	for _, runItem := range stack.PostRun {
 		var wg sync.WaitGroup
 		wg.Add(1)
-		go runItem.Exec(&wg, stack, stack.Workdir)
+		go runItem.Exec(&wg, stack)
 		wg.Wait()
 	}
 }
@@ -270,10 +289,10 @@ func (stack *Stack) Start(parentWG *sync.WaitGroup) {
 	go stack.PreExec(&stack.preExecWG)
 	stack.preExecWG.Wait()
 
-	if !conditions.When(stack, stack.When) {
+	if !conditions.Wait(stack, stack.Wait, stack.WaitTimeout) {
 		return
 	}
-	if !conditions.Wait(stack, stack.Wait) {
+	if !conditions.When(stack, stack.When) {
 		return
 	}
 
@@ -343,11 +362,18 @@ func parseInputYAML(stack *Stack, input stackInputYAML, parentStack types.Stack)
 	stack.Locals.Vars = input.Locals
 
 	stack.Libs = libs.ParseAndInitLibs(input.Libs, stack.Workdir)
-	stack.PreRun = run.ParseRun(input.PreRun, stack.Workdir)
-	stack.Run = run.ParseRun(input.Run, stack.Workdir)
-	stack.PostRun = run.ParseRun(input.PostRun, stack.Workdir)
+	stack.PreRun = stack.GetRunItemsParser().ParseRun(stack, input.PreRun)
+	stack.Run = stack.GetRunItemsParser().ParseRun(stack, input.Run)
+	stack.PostRun = stack.GetRunItemsParser().ParseRun(stack, input.PostRun)
 	stack.When = input.When
 	stack.Wait = input.Wait
+	waitTimeout := input.WaitTimeout
+	stack.WaitTimeout = *app.App.Config.DefaultTimeout
+	if waitTimeout != "" {
+		var err error
+		stack.WaitTimeout, err = time.ParseDuration(waitTimeout)
+		misc.CheckIfErr(err)
+	}
 }
 
 func parseStackItems(stack types.Stack, item interface{}, namePrefix string) (output []types.Stack) {
@@ -371,7 +397,8 @@ func parseStackItems(stack types.Stack, item interface{}, namePrefix string) (ou
 		}
 		for _, stackDir := range stackDirs {
 			newStack := new(Stack)
-			newStack.ParentStack = stack
+			newStack.runItemParser = parser.RunItemParser
+			newStack.parentStack = stack
 			newStack.LoadFromFile(misc.FindStackFileInDir(stackDir), stack)
 			output = append(output, newStack)
 		}
@@ -388,6 +415,7 @@ func parseStackItems(stack types.Stack, item interface{}, namePrefix string) (ou
 				newStackConfig["api"] = stack.GetAPI()
 			}
 			newStack := new(Stack)
+			newStack.runItemParser = parser.RunItemParser
 			newStack.LoadFromString(misc.ToYAML(newStackConfig), stack)
 			output = append(output, newStack)
 		} else {

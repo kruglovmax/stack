@@ -6,9 +6,11 @@ import (
 	"io/ioutil"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"runtime/debug"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/Jeffail/gabs"
 	"github.com/davecgh/go-spew/spew"
@@ -16,6 +18,7 @@ import (
 	"github.com/joeycumines/go-dotnotation/dotnotation"
 	"github.com/kruglovmax/stack/pkg/app"
 	"github.com/kruglovmax/stack/pkg/conditions"
+	"github.com/kruglovmax/stack/pkg/consts"
 	"github.com/kruglovmax/stack/pkg/log"
 	"github.com/kruglovmax/stack/pkg/misc"
 	"github.com/kruglovmax/stack/pkg/types"
@@ -24,22 +27,24 @@ import (
 
 // scriptItem type
 type scriptItem struct {
-	Script string        `json:"script,omitempty"`
-	Vars   interface{}   `json:"vars,omitempty"`
-	Output []interface{} `json:"output,omitempty"`
-	When   string        `json:"when,omitempty"`
-	Wait   string        `json:"wait,omitempty"`
+	Script      string        `json:"script,omitempty"`
+	Vars        interface{}   `json:"vars,omitempty"`
+	Output      []interface{} `json:"output,omitempty"`
+	When        string        `json:"when,omitempty"`
+	Wait        string        `json:"wait,omitempty"`
+	RunTimeout  time.Duration `json:"runTimeout,omitempty"`
+	WaitTimeout time.Duration `json:"waitTimeout,omitempty"`
 }
 
 // Exec func
-func (item *scriptItem) Exec(parentWG *sync.WaitGroup, stack types.Stack, workdir string) {
+func (item *scriptItem) Exec(parentWG *sync.WaitGroup, stack types.Stack) {
 	if parentWG != nil {
 		defer parentWG.Done()
 	}
-	if !conditions.When(stack, item.When) {
+	if !conditions.Wait(stack, item.Wait, item.WaitTimeout) {
 		return
 	}
-	if !conditions.Wait(stack, item.Wait) {
+	if !conditions.When(stack, item.When) {
 		return
 	}
 
@@ -69,7 +74,9 @@ func (item *scriptItem) Exec(parentWG *sync.WaitGroup, stack types.Stack, workdi
 	cmd := exec.Command("sh", "-c", item.Script)
 	cmd.Dir = stack.GetWorkdir()
 	cmd.Env = append(os.Environ(),
-		fmt.Sprintf("VARS=%s", varsFile.Name()),
+		fmt.Sprintf("STACK_VARS=%s", varsFile.Name()),
+		fmt.Sprintf("STACK_ROOT=%s", *app.App.Config.Workdir),
+		fmt.Sprintf("STACK_GITCLONE_DIR=%s", filepath.Join(*app.App.Config.Workdir, consts.GitCloneDir)),
 	)
 	stderr, err := cmd.StderrPipe()
 	misc.CheckIfErr(err)
@@ -87,10 +94,14 @@ func (item *scriptItem) Exec(parentWG *sync.WaitGroup, stack types.Stack, workdi
 	err = cmd.Start()
 	misc.CheckIfErr(err)
 
-	if misc.WaitTimeout(&wg, *app.App.Config.WaitTimeout) {
+	runTimeout := *app.App.Config.DefaultTimeout
+	if item.RunTimeout != 0 {
+		runTimeout = item.RunTimeout
+	}
+	if misc.WaitTimeout(&wg, runTimeout) {
 		log.Logger.Fatal().
 			Str("stack", stack.GetWorkdir()).
-			Str("timeout", fmt.Sprint(*app.App.Config.WaitTimeout)).
+			Str("timeout", fmt.Sprint(runTimeout)).
 			Msg("Script waiting failed")
 	}
 
@@ -220,19 +231,41 @@ func (item *scriptItem) getScriptOutput(stack types.Stack, output *bufio.Scanner
 }
 
 // Parse func
-func Parse(workDir string, item interface{}) types.RunItem {
-	tmplItem := item.(map[string]interface{})
+func Parse(stack types.Stack, item map[string]interface{}) types.RunItem {
+	tmplItem := item
 	output := new(scriptItem)
-	output.Script = (item).(map[string]interface{})["script"].(string)
+	output.Script = item["script"].(string)
 	output.Vars = tmplItem["vars"]
-	output.Output = (item).(map[string]interface{})["output"].([]interface{})
-	whenCondition := (item).(map[string]interface{})["when"]
-	waitCondition := (item).(map[string]interface{})["wait"]
+	if value, ok := item["output"]; ok {
+		switch value.(type) {
+		case []interface{}:
+			output.Output = value.([]interface{})
+		default:
+			misc.CheckIfErr(fmt.Errorf("Bad output stack: %s", stack.GetWorkdir()))
+		}
+	} else {
+		output.Output = []interface{}{""}
+	}
+	whenCondition := item["when"]
+	waitCondition := item["wait"]
 	if whenCondition != nil {
 		output.When = whenCondition.(string)
 	}
 	if waitCondition != nil {
 		output.Wait = waitCondition.(string)
+	}
+	var err error
+	runTimeout := item["runTimeout"]
+	output.RunTimeout = *app.App.Config.DefaultTimeout
+	if runTimeout != nil {
+		output.RunTimeout, err = time.ParseDuration(runTimeout.(string))
+		misc.CheckIfErr(err)
+	}
+	waitTimeout := item["waitTimeout"]
+	output.WaitTimeout = *app.App.Config.DefaultTimeout
+	if waitTimeout != nil {
+		output.WaitTimeout, err = time.ParseDuration(waitTimeout.(string))
+		misc.CheckIfErr(err)
 	}
 
 	return output

@@ -102,6 +102,8 @@ definitions:
           output: { "$ref": "#/definitions/outputType" }
           when: { "$ref": "#/definitions/when" }
           wait: { "$ref": "#/definitions/when" }
+          runTimeout: { "$ref": "#/definitions/timeout" }
+          waitTimeout: { "$ref": "#/definitions/timeout" }
       - type: object
         additionalProperties: false
         minProperties: 1
@@ -120,6 +122,8 @@ definitions:
           output: { "$ref": "#/definitions/outputType" }
           when: { "$ref": "#/definitions/when" }
           wait: { "$ref": "#/definitions/when" }
+          runTimeout: { "$ref": "#/definitions/timeout" }
+          waitTimeout: { "$ref": "#/definitions/timeout" }
       - type: object
         additionalProperties: false
         minProperties: 1
@@ -131,9 +135,31 @@ definitions:
           output: { "$ref": "#/definitions/outputType" }
           when: { "$ref": "#/definitions/when" }
           wait: { "$ref": "#/definitions/when" }
-          timeout:
-            type: integer
-            minimum: 0
+          runTimeout: { "$ref": "#/definitions/timeout" }
+          waitTimeout: { "$ref": "#/definitions/timeout" }
+      - type: object
+        additionalProperties: false
+        minProperties: 1
+        required: ["gitclone"]
+        properties:
+          gitclone:
+            type: string
+          when: { "$ref": "#/definitions/when" }
+          wait: { "$ref": "#/definitions/when" }
+          runTimeout: { "$ref": "#/definitions/timeout" }
+          waitTimeout: { "$ref": "#/definitions/timeout" }
+      - type: object
+        additionalProperties: false
+        minProperties: 1
+        required: ["group"]
+        properties:
+          group: { "$ref": "#/definitions/run" }
+          when: { "$ref": "#/definitions/when" }
+          wait: { "$ref": "#/definitions/when" }
+          runTimeout: { "$ref": "#/definitions/timeout" }
+          waitTimeout: { "$ref": "#/definitions/timeout" }
+          parallel:
+            type: boolean
       #- oneOf:
       #  - type: object
       #    additionalProperties: false
@@ -228,6 +254,9 @@ definitions:
   when:
     type: string
     minLength: 1
+  timeout:
+    type: string
+    minLength: 2
   stack:
     type: object
     additionalProperties: false
@@ -245,6 +274,7 @@ definitions:
       libs: { "$ref": "#/definitions/libs" }
       when: { "$ref": "#/definitions/when" }
       wait: { "$ref": "#/definitions/when" }
+      waitTimeout: { "$ref": "#/definitions/timeout" }
 
 
 allOf:

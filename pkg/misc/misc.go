@@ -161,7 +161,12 @@ func CheckIfErr(err error) {
 }
 
 // GitClone func
-func GitClone(gitClonePath, gitURL, gitRef string) (err error) {
+func GitClone(parentWG *sync.WaitGroup, gitClonePath, gitURL, gitRef string) {
+	if parentWG != nil {
+		defer parentWG.Done()
+	}
+
+	var err error
 	app.App.Mutex.GitWorkMutex.Lock()
 	defer app.App.Mutex.GitWorkMutex.Unlock()
 
@@ -172,7 +177,6 @@ func GitClone(gitClonePath, gitURL, gitRef string) (err error) {
 		Progress: os.Stderr,
 	})
 	if err == git.ErrRepositoryAlreadyExists {
-		err = nil
 		return
 		// fetch repo
 		// gitRepo, err = git.PlainOpen(gitClonePath)
@@ -187,7 +191,7 @@ func GitClone(gitClonePath, gitURL, gitRef string) (err error) {
 	var gitWorkTree *git.Worktree
 	gitWorkTree, err = gitRepo.Worktree()
 	if err != nil {
-		return
+		CheckIfErr(err)
 	}
 	err = gitWorkTree.Checkout(&git.CheckoutOptions{
 		Hash: plumbing.NewHash(gitRef),
@@ -316,13 +320,20 @@ func PathIsDir(path string) bool {
 
 // FindStackFileInDir func
 func FindStackFileInDir(dir string) (stackFile string) {
+	dirBase := filepath.Base(dir)
 	switch {
-	case PathIsExists(filepath.Join(dir, "stack.yaml")):
-		stackFile = filepath.Clean(filepath.Join(dir, "stack.yaml"))
-	case PathIsExists(filepath.Join(dir, "stack.yml")):
-		stackFile = filepath.Clean(filepath.Join(dir, "stack.yml"))
-	case PathIsExists(filepath.Join(dir, "stack.json")):
-		stackFile = filepath.Clean(filepath.Join(dir, "stack.json"))
+	case PathIsExists(filepath.Join(dir, consts.StackDefaultFileName+".yaml")):
+		stackFile = filepath.Clean(filepath.Join(dir, consts.StackDefaultFileName+".yaml"))
+	case PathIsExists(filepath.Join(dir, consts.StackDefaultFileName+".yml")):
+		stackFile = filepath.Clean(filepath.Join(dir, consts.StackDefaultFileName+".yml"))
+	case PathIsExists(filepath.Join(dir, consts.StackDefaultFileName+".json")):
+		stackFile = filepath.Clean(filepath.Join(dir, consts.StackDefaultFileName+".json"))
+	case PathIsExists(filepath.Join(dir, dirBase+".yaml")):
+		stackFile = filepath.Clean(filepath.Join(dir, dirBase+".yaml"))
+	case PathIsExists(filepath.Join(dir, dirBase+".yml")):
+		stackFile = filepath.Clean(filepath.Join(dir, dirBase+".yml"))
+	case PathIsExists(filepath.Join(dir, dirBase+".json")):
+		stackFile = filepath.Clean(filepath.Join(dir, dirBase+".json"))
 	default:
 		log.Logger.Debug().
 			Msg(string(debug.Stack()))

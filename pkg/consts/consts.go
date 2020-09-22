@@ -20,3 +20,9 @@ const (
 const (
 	ExitCodeOK = iota
 )
+
+// other
+const (
+	GitCloneDir          = ".gitclone"
+	StackDefaultFileName = "stack"
+)

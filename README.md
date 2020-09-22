@@ -1,5 +1,7 @@
 # stack tool ![stack tool][logo]
 
+Stack is Tool About Creating Kindda
+
 **Overview:**
 
 ## stack.yaml

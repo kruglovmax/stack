@@ -53,7 +53,7 @@ Example:
 --workdir="stackDir"
 or
 -w stackDir`)
-	app.App.Config.WaitTimeout = fs.Duration("wait-timeout", 1*time.Minute,
+	app.App.Config.DefaultTimeout = fs.Duration("wait-timeout", 1*time.Minute,
 		"duration after which sync operations time out")
 
 	err := fs.Parse(os.Args[1:])

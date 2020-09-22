@@ -23,6 +23,7 @@ type Stack interface {
 	GetVars() *StackVars
 	GetFlags() *StackFlags
 	GetLocals() *StackLocals
+	GetRunItemsParser() RunItemParser
 	GetView() interface{}
 	GetWorkdir() string
 	LoadFromFile(string, Stack)
@@ -62,5 +63,11 @@ type ExecExitCode struct {
 
 // RunItem interface
 type RunItem interface {
-	Exec(*sync.WaitGroup, Stack, string)
+	Exec(*sync.WaitGroup, Stack)
+}
+
+// RunItemParser interface
+type RunItemParser interface {
+	ParseRun(Stack, []interface{}) (output []RunItem)
+	ParseRunItem(Stack, interface{}) (output RunItem)
 }
