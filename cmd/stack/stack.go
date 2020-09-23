@@ -95,28 +95,5 @@ or
 
 	stack.RunRootStack(*app.App.Config.Workdir)
 
-	// rootStack := stack.GetRootStack()
-
-	// for _, file := range *app.App.Config.VarFiles {
-	// 	var vars interface{}
-	// 	misc.LoadYAMLFromSopsFile(file, &vars)
-	// 	rootStack.AddRawVarsLeft(vars)
-	// }
-
-	// for _, str := range *app.App.Config.CLIValues {
-	// 	vars, err := strvals.Parse(str)
-	// 	if err != nil {
-	// 		log.Logger.Trace().
-	// 			Msg(spew.Sdump(str))
-	// 		log.Logger.Debug().
-	// 			Msg(string(debug.Stack()))
-	// 		log.Logger.Fatal().
-	// 			Msg(err.Error())
-	// 	}
-	// 	rootStack.AddRawVarsLeft(vars)
-	// }
-
-	// rootStack.Execute()
-
 	os.Exit(0)
 }

@@ -339,7 +339,7 @@ func parseInputYAML(stack *Stack, input stackInputYAML, parentStack types.Stack)
 	if parentStack == nil {
 		for _, varsFile := range *app.App.Config.VarFiles {
 			var varsMap map[string]interface{}
-			misc.LoadYAMLFromSopsFile(filepath.Join(stack.Workdir, varsFile), &varsMap)
+			misc.LoadYAMLFromFile(filepath.Join(stack.Workdir, varsFile), &varsMap)
 			varsArray = append(varsArray, varsMap)
 		}
 		for _, str := range *app.App.Config.CLIValues {
