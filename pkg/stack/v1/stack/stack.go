@@ -136,6 +136,8 @@ func (stack *Stack) GetView() (result interface{}) {
 	output.Flags = stack.Flags.Vars
 	output.Locals = stack.Locals.Vars
 
+	app.App.Mutex.GetViewMutex.Lock()
+	defer app.App.Mutex.GetViewMutex.Unlock()
 	result = misc.ToInterface(output)
 
 	return
@@ -339,7 +341,7 @@ func parseInputYAML(stack *Stack, input stackInputYAML, parentStack types.Stack)
 	if parentStack == nil {
 		for _, varsFile := range *app.App.Config.VarFiles {
 			var varsMap map[string]interface{}
-			misc.LoadYAMLFromSopsFile(filepath.Join(stack.Workdir, varsFile), &varsMap)
+			misc.LoadYAMLFromFile(filepath.Join(stack.Workdir, varsFile), &varsMap)
 			varsArray = append(varsArray, varsMap)
 		}
 		for _, str := range *app.App.Config.CLIValues {

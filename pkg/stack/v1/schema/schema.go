@@ -107,6 +107,28 @@ definitions:
       - type: object
         additionalProperties: false
         minProperties: 1
+        required: ["jsonnet", "output"]
+        properties:
+          jsonnet:
+            oneOf:
+            - type: string
+              minLength: 0
+            - type: array
+              uniqueItems: true
+              minItems: 1
+              maxItems: 1
+              items:
+                type: string
+                minLength: 1
+          vars: { "$ref": "#/definitions/runItemVars" }
+          output: { "$ref": "#/definitions/outputType" }
+          when: { "$ref": "#/definitions/when" }
+          wait: { "$ref": "#/definitions/when" }
+          runTimeout: { "$ref": "#/definitions/timeout" }
+          waitTimeout: { "$ref": "#/definitions/timeout" }
+      - type: object
+        additionalProperties: false
+        minProperties: 1
         required: ["pongo2", "output"]
         properties:
           pongo2:
@@ -144,6 +166,9 @@ definitions:
         properties:
           gitclone:
             type: string
+          ref:
+            type: string
+            minLength: 1
           when: { "$ref": "#/definitions/when" }
           wait: { "$ref": "#/definitions/when" }
           runTimeout: { "$ref": "#/definitions/timeout" }

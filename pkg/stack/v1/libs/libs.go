@@ -64,7 +64,7 @@ func parseLibsItem(input interface{}, workdir string) (libPath string, err error
 				gitPath = "."
 			}
 			var gitClonePath string
-			gitClonePath, err = filepath.Abs(filepath.Join(app.GitLibsPath, output, gitRef))
+			gitClonePath, err = filepath.Abs(filepath.Join(*app.App.Config.GitLibsPath, output, gitRef))
 			if err != nil {
 				return
 			}

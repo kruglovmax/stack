@@ -13,6 +13,7 @@ require (
 	github.com/flytam/filenamify v1.0.0
 	github.com/go-git/go-git/v5 v5.1.0
 	github.com/google/cel-go v0.5.1
+	github.com/google/go-jsonnet v0.16.0
 	github.com/hairyhenderson/gomplate/v3 v3.8.0
 	github.com/imdario/mergo v0.3.11
 	github.com/joeycumines/go-dotnotation v0.0.0-20180131115956-2d3612e36c5d

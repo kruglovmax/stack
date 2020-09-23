@@ -14,6 +14,7 @@ import (
 
 	"github.com/davecgh/go-spew/spew"
 	"github.com/kruglovmax/stack/pkg/app"
+	"github.com/kruglovmax/stack/pkg/consts"
 	"github.com/kruglovmax/stack/pkg/log"
 	"github.com/kruglovmax/stack/pkg/stack"
 
@@ -53,7 +54,10 @@ Example:
 --workdir="stackDir"
 or
 -w stackDir`)
-	app.App.Config.DefaultTimeout = fs.Duration("wait-timeout", 1*time.Minute,
+	app.App.Config.GitLibsPath = fs.String("gitlibs-path", consts.GitLibsPath, `Directory where to clone libs from git
+Example:
+--gitlibs-path=".libs"`)
+	app.App.Config.DefaultTimeout = fs.Duration("wait-timeout", consts.DefaultTimeout,
 		"duration after which sync operations time out")
 
 	err := fs.Parse(os.Args[1:])
@@ -94,29 +98,6 @@ or
 	}
 
 	stack.RunRootStack(*app.App.Config.Workdir)
-
-	// rootStack := stack.GetRootStack()
-
-	// for _, file := range *app.App.Config.VarFiles {
-	// 	var vars interface{}
-	// 	misc.LoadYAMLFromSopsFile(file, &vars)
-	// 	rootStack.AddRawVarsLeft(vars)
-	// }
-
-	// for _, str := range *app.App.Config.CLIValues {
-	// 	vars, err := strvals.Parse(str)
-	// 	if err != nil {
-	// 		log.Logger.Trace().
-	// 			Msg(spew.Sdump(str))
-	// 		log.Logger.Debug().
-	// 			Msg(string(debug.Stack()))
-	// 		log.Logger.Fatal().
-	// 			Msg(err.Error())
-	// 	}
-	// 	rootStack.AddRawVarsLeft(vars)
-	// }
-
-	// rootStack.Execute()
 
 	os.Exit(0)
 }

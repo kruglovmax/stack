@@ -1,20 +1,18 @@
-package gomplate
+package jsonnet
 
 import (
 	"fmt"
+	"io/ioutil"
 	"os"
 	"path/filepath"
 	"runtime/debug"
 	"strings"
 	"sync"
-	"text/template"
 	"time"
 
 	"github.com/Jeffail/gabs/v2"
 	"github.com/davecgh/go-spew/spew"
-	gomplate "github.com/hairyhenderson/gomplate/v3"
-	gomplateData "github.com/hairyhenderson/gomplate/v3/data"
-	gomplateTmpl "github.com/hairyhenderson/gomplate/v3/tmpl"
+	jsonnet "github.com/google/go-jsonnet"
 	"github.com/imdario/mergo"
 	"github.com/joeycumines/go-dotnotation/dotnotation"
 	"github.com/kruglovmax/stack/pkg/app"
@@ -25,9 +23,10 @@ import (
 	"gopkg.in/yaml.v2"
 )
 
-// gomplateItem type
-type gomplateItem struct {
-	Template    string        `json:"gomplate,omitempty"`
+// jsonnetItem type
+type jsonnetItem struct {
+	Jsonnet     string        `json:"jsonnet,omitempty"`
+	WorkDir     string        `json:"workdir,omitempty"`
 	Vars        interface{}   `json:"vars,omitempty"`
 	Output      []interface{} `json:"output,omitempty"`
 	When        string        `json:"when,omitempty"`
@@ -37,7 +36,7 @@ type gomplateItem struct {
 }
 
 // Exec func
-func (item *gomplateItem) Exec(parentWG *sync.WaitGroup, stack types.Stack) {
+func (item *jsonnetItem) Exec(parentWG *sync.WaitGroup, stack types.Stack) {
 	if parentWG != nil {
 		defer parentWG.Done()
 	}
@@ -48,13 +47,13 @@ func (item *gomplateItem) Exec(parentWG *sync.WaitGroup, stack types.Stack) {
 		return
 	}
 	app.App.Mutex.CurrentWorkDirMutex.Lock()
-	os.Chdir(stack.GetWorkdir())
+	os.Chdir(item.WorkDir)
 	var parsedString string
 	switch item.Vars.(type) {
 	case map[string]interface{}:
 		var wg sync.WaitGroup
 		wg.Add(1)
-		parsedString = processString(&wg, item.Vars.(map[string]interface{}), item.Template)
+		parsedString = processJsonnet(&wg, item.Vars.(map[string]interface{}), item.Jsonnet)
 		if misc.WaitTimeout(&wg, item.RunTimeout) {
 			log.Logger.Fatal().
 				Str("stack", stack.GetWorkdir()).
@@ -66,7 +65,7 @@ func (item *gomplateItem) Exec(parentWG *sync.WaitGroup, stack types.Stack) {
 		misc.CheckIfErr(err)
 		var wg sync.WaitGroup
 		wg.Add(1)
-		parsedString = processString(&wg, vars, item.Template)
+		parsedString = processJsonnet(&wg, vars, item.Jsonnet)
 		if misc.WaitTimeout(&wg, item.RunTimeout) {
 			log.Logger.Fatal().
 				Str("stack", stack.GetWorkdir()).
@@ -76,7 +75,7 @@ func (item *gomplateItem) Exec(parentWG *sync.WaitGroup, stack types.Stack) {
 	case nil:
 		var wg sync.WaitGroup
 		wg.Add(1)
-		parsedString = processString(&wg, stack.GetView(), item.Template)
+		parsedString = processJsonnet(&wg, stack.GetView(), item.Jsonnet)
 		if misc.WaitTimeout(&wg, item.RunTimeout) {
 			log.Logger.Fatal().
 				Str("stack", stack.GetWorkdir()).
@@ -193,28 +192,36 @@ func Parse(stack types.Stack, item map[string]interface{}) types.RunItem {
 	app.App.Mutex.CurrentWorkDirMutex.Lock()
 	defer app.App.Mutex.CurrentWorkDirMutex.Unlock()
 	os.Chdir(stack.GetWorkdir())
-	templateLoader := func() string {
-		switch item["gomplate"].(type) {
+	jsonnetLoader, jsonnetFile := func() (string, string) {
+		switch item["jsonnet"].(type) {
 		case string:
-			return item["gomplate"].(string)
+			return item["jsonnet"].(string), ""
 		case []interface{}:
-			var resultTemplate string
-			for _, path := range item["gomplate"].([]interface{}) {
-				path := path.(string)
-				if !filepath.IsAbs(path) {
-					path = filepath.Join(stack.GetWorkdir(), path)
-				}
-				resultTemplate = resultTemplate + misc.ReadFileFromPath(path)
+			var resultJsonnet string
+			jsonnetFile := item["jsonnet"].([]interface{})[0].(string)
+			if misc.PathIsFile(jsonnetFile) {
+				content, err := ioutil.ReadFile(jsonnetFile)
+				misc.CheckIfErr(err)
+				resultJsonnet = string(content)
+			} else {
+				err := fmt.Errorf("File not found %s", jsonnetFile)
+				misc.CheckIfErr(err)
 			}
-			return resultTemplate
+			return resultJsonnet, jsonnetFile
 		}
 		err := fmt.Errorf("Unable to parse run item")
 		misc.CheckIfErr(err)
-		return ""
+		return "", ""
 	}()
 
-	output := new(gomplateItem)
-	output.Template = templateLoader
+	output := new(jsonnetItem)
+	output.Jsonnet = jsonnetLoader
+	output.WorkDir = stack.GetWorkdir()
+	if jsonnetFile != "" {
+		absFile, err := filepath.Abs(jsonnetFile)
+		misc.CheckIfErr(err)
+		output.WorkDir = filepath.Dir(absFile)
+	}
 	output.Vars = item["vars"]
 	output.Output = item["output"].([]interface{})
 	whenCondition := item["when"]
@@ -242,25 +249,14 @@ func Parse(stack types.Stack, item map[string]interface{}) types.RunItem {
 	return output
 }
 
-func processString(parentWG *sync.WaitGroup, rootObject interface{}, str string) string {
+func processJsonnet(parentWG *sync.WaitGroup, rootObject interface{}, str string) string {
 	if parentWG != nil {
 		defer parentWG.Done()
 	}
 
-	var gtpl *gomplateTmpl.Template
-	root := template.New("root")
-	funcMap := gomplate.Funcs(&gomplateData.Data{})
-
-	gtpl = gomplateTmpl.New(root, rootObject)
-	funcMap["tpl"] = gtpl.Inline
-	funcMap["tmpl"] = func() *gomplateTmpl.Template {
-		return gtpl
-	}
-	root.Funcs(funcMap)
-	gtplOut, err := gtpl.Inline(str)
-	log.Logger.Trace().
-		Str("rootMap", spew.Sprint(rootObject)).
-		Msg("")
+	vm := jsonnet.MakeVM()
+	vm.TLACode("stack", misc.ToJSON(rootObject))
+	result, err := vm.EvaluateSnippet("jsonnet", str)
 	misc.CheckIfErr(err)
-	return gtplOut
+	return result
 }
