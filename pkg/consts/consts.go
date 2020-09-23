@@ -1,5 +1,7 @@
 package consts
 
+import "time"
+
 // MESSAGES
 const (
 	MessageBadStack                  = "Bad stack"
@@ -24,5 +26,7 @@ const (
 // other
 const (
 	GitCloneDir          = ".gitclone"
+	GitLibsPath          = ".libs"
 	StackDefaultFileName = "stack"
+	DefaultTimeout       = 1 * time.Minute
 )

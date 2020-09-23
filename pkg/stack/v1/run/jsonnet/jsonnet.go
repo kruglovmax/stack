@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
+	"path/filepath"
 	"runtime/debug"
 	"strings"
 	"sync"
@@ -25,6 +26,7 @@ import (
 // jsonnetItem type
 type jsonnetItem struct {
 	Jsonnet     string        `json:"jsonnet,omitempty"`
+	WorkDir     string        `json:"workdir,omitempty"`
 	Vars        interface{}   `json:"vars,omitempty"`
 	Output      []interface{} `json:"output,omitempty"`
 	When        string        `json:"when,omitempty"`
@@ -45,7 +47,7 @@ func (item *jsonnetItem) Exec(parentWG *sync.WaitGroup, stack types.Stack) {
 		return
 	}
 	app.App.Mutex.CurrentWorkDirMutex.Lock()
-	os.Chdir(stack.GetWorkdir())
+	os.Chdir(item.WorkDir)
 	var parsedString string
 	switch item.Vars.(type) {
 	case map[string]interface{}:
@@ -190,10 +192,10 @@ func Parse(stack types.Stack, item map[string]interface{}) types.RunItem {
 	app.App.Mutex.CurrentWorkDirMutex.Lock()
 	defer app.App.Mutex.CurrentWorkDirMutex.Unlock()
 	os.Chdir(stack.GetWorkdir())
-	jsonnetLoader := func() string {
+	jsonnetLoader, jsonnetFile := func() (string, string) {
 		switch item["jsonnet"].(type) {
 		case string:
-			return item["jsonnet"].(string)
+			return item["jsonnet"].(string), ""
 		case []interface{}:
 			var resultJsonnet string
 			jsonnetFile := item["jsonnet"].([]interface{})[0].(string)
@@ -205,15 +207,21 @@ func Parse(stack types.Stack, item map[string]interface{}) types.RunItem {
 				err := fmt.Errorf("File not found %s", jsonnetFile)
 				misc.CheckIfErr(err)
 			}
-			return resultJsonnet
+			return resultJsonnet, jsonnetFile
 		}
 		err := fmt.Errorf("Unable to parse run item")
 		misc.CheckIfErr(err)
-		return ""
+		return "", ""
 	}()
 
 	output := new(jsonnetItem)
 	output.Jsonnet = jsonnetLoader
+	output.WorkDir = stack.GetWorkdir()
+	if jsonnetFile != "" {
+		absFile, err := filepath.Abs(jsonnetFile)
+		misc.CheckIfErr(err)
+		output.WorkDir = filepath.Dir(absFile)
+	}
 	output.Vars = item["vars"]
 	output.Output = item["output"].([]interface{})
 	whenCondition := item["when"]

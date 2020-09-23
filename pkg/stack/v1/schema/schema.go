@@ -166,6 +166,9 @@ definitions:
         properties:
           gitclone:
             type: string
+          ref:
+            type: string
+            minLength: 1
           when: { "$ref": "#/definitions/when" }
           wait: { "$ref": "#/definitions/when" }
           runTimeout: { "$ref": "#/definitions/timeout" }

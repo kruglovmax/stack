@@ -14,6 +14,7 @@ import (
 
 	"github.com/davecgh/go-spew/spew"
 	"github.com/kruglovmax/stack/pkg/app"
+	"github.com/kruglovmax/stack/pkg/consts"
 	"github.com/kruglovmax/stack/pkg/log"
 	"github.com/kruglovmax/stack/pkg/stack"
 
@@ -53,7 +54,10 @@ Example:
 --workdir="stackDir"
 or
 -w stackDir`)
-	app.App.Config.DefaultTimeout = fs.Duration("wait-timeout", 1*time.Minute,
+	app.App.Config.GitLibsPath = fs.String("gitlibs-path", consts.GitLibsPath, `Directory where to clone libs from git
+Example:
+--gitlibs-path=".libs"`)
+	app.App.Config.DefaultTimeout = fs.Duration("wait-timeout", consts.DefaultTimeout,
 		"duration after which sync operations time out")
 
 	err := fs.Parse(os.Args[1:])

@@ -136,6 +136,8 @@ func (stack *Stack) GetView() (result interface{}) {
 	output.Flags = stack.Flags.Vars
 	output.Locals = stack.Locals.Vars
 
+	app.App.Mutex.GetViewMutex.Lock()
+	defer app.App.Mutex.GetViewMutex.Unlock()
 	result = misc.ToInterface(output)
 
 	return

@@ -13,11 +13,6 @@ var (
 	App *app
 )
 
-// consts
-const (
-	GitLibsPath = ".gitlibs"
-)
-
 type app struct {
 	Config *appConfig
 	Mutex  *appMutex
@@ -32,11 +27,13 @@ type appConfig struct {
 	Verbosity      *int           `json:"Verbosity,omitempty"`
 	DefaultTimeout *time.Duration `json:"DefaultTimeout,omitempty"`
 	Workdir        *string        `json:"Workdir,omitempty"`
+	GitLibsPath    *string        `json:"GitLibsPath,omitempty"`
 }
 
 type appMutex struct {
 	CurrentWorkDirMutex sync.Mutex
 	GitWorkMutex        sync.Mutex
+	GetViewMutex        sync.Mutex
 }
 
 func init() {

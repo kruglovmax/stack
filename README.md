@@ -120,6 +120,12 @@ locals:  # локальные ключи, актуальны только в т�
   output:
   - stderr
 
+- jsonnet: |-
+    function(stack)
+      {test: stack.name}
+  output:
+  - stderr
+
 - pongo2:
   - tpl/jinjaTemplate.jinja2
   output:
@@ -191,6 +197,11 @@ wait: flags.test1 == "value1"
 
 [docs](https://docs.gomplate.ca/),
 [git](https://github.com/hairyhenderson/gomplate/)
+
+### google/go-jsonnet
+
+[docs](https://jsonnet.org/ref/language.html),
+[git](https://github.com/google/go-jsonnet)
 
 ### flosch/pongo2
 
