@@ -169,6 +169,9 @@ definitions:
           ref:
             type: string
             minLength: 1
+          dir:
+            type: string
+            minLength: 1
           when: { "$ref": "#/definitions/when" }
           wait: { "$ref": "#/definitions/when" }
           runTimeout: { "$ref": "#/definitions/timeout" }
