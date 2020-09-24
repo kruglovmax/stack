@@ -24,6 +24,7 @@ type Stack interface {
 	GetFlags() *StackFlags
 	GetLocals() *StackLocals
 	GetRunItemsParser() RunItemParser
+	GetStackID() string
 	GetView() interface{}
 	GetWorkdir() string
 	LoadFromFile(string, Stack)
@@ -53,6 +54,12 @@ type StackLocals struct {
 type StackExitCode struct {
 	Status uint64
 	Stack  Stack
+}
+
+// StacksStatus type
+type StacksStatus struct {
+	StacksStatus map[string]string
+	Mux          sync.Mutex
 }
 
 // ExecExitCode of stack

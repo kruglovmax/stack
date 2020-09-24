@@ -58,6 +58,8 @@ func waitLoop(stack types.Stack, condition string, exit chan int) {
 			break
 		}
 		time.Sleep(100 * time.Millisecond)
+		log.Logger.Trace().
+			Str("condition", condition).Msg("Waiting for")
 	}
 	exit <- 0
 }
