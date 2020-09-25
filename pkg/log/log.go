@@ -32,7 +32,7 @@ var levels = map[interface{}]zerolog.Level{
 	"info":  zerolog.InfoLevel,
 	"debug": zerolog.DebugLevel,
 	"trace": zerolog.TraceLevel,
-	0:       zerolog.FatalLevel,
+	0:       zerolog.ErrorLevel,
 	1:       zerolog.InfoLevel,
 	2:       zerolog.DebugLevel,
 	3:       zerolog.TraceLevel,

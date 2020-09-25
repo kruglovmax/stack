@@ -227,4 +227,4 @@ wait: flags.test1 == "value1"
 
 <!-- DEFINITIONS -->
 
-[logo]: https://github.com/kruglovmax/stack/raw/v1-alpha2/internal/stack30.png "logo"
+[logo]: https://github.com/kruglovmax/stack/raw/master/internal/stack30.png "logo"

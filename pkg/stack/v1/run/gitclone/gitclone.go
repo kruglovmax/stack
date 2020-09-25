@@ -2,6 +2,7 @@ package gitclone
 
 import (
 	"fmt"
+	"os"
 	"path/filepath"
 	"sync"
 	"time"
@@ -88,7 +89,11 @@ func Parse(stack types.Stack, item map[string]interface{}) types.RunItem {
 	}
 
 	if _, ok := item["dir"]; ok {
-		output.Dir = item["dir"].(string)
+		app.App.Mutex.CurrentWorkDirMutex.Lock()
+		os.Chdir(stack.GetWorkdir())
+		output.Dir, err = filepath.Abs(item["dir"].(string))
+		app.App.Mutex.CurrentWorkDirMutex.Unlock()
+		misc.CheckIfErr(err)
 	}
 
 	return output

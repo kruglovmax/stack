@@ -175,7 +175,7 @@ func GitClone(parentWG *sync.WaitGroup, gitClonePath, gitURL, gitRef string) {
 	var gitRepo *git.Repository
 	gitRepo, err = git.PlainClone(gitClonePath, false, &git.CloneOptions{
 		URL:      gitURL,
-		Progress: os.Stderr,
+		Progress: nil,
 	})
 	if err == git.ErrRepositoryAlreadyExists {
 		return
