@@ -18,7 +18,7 @@ import (
 	"github.com/kruglovmax/stack/pkg/log"
 	"github.com/kruglovmax/stack/pkg/misc"
 	"github.com/kruglovmax/stack/pkg/types"
-	"gopkg.in/yaml.v2"
+	"sigs.k8s.io/yaml"
 )
 
 // jsonnetItem type
