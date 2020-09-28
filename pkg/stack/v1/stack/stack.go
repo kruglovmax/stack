@@ -330,6 +330,8 @@ func (stack *Stack) Start(parentWG *sync.WaitGroup) {
 		defer parentWG.Done()
 	}
 
+	defer stack.done()
+
 	stack.preExecWG.Add(1)
 	go stack.PreExec(&stack.preExecWG)
 	stack.preExecWG.Wait()
@@ -366,6 +368,9 @@ func (stack *Stack) Start(parentWG *sync.WaitGroup) {
 	stack.Status.Mux.Lock()
 	stack.Status.StacksStatus[stack.stackID] = "Done"
 	stack.Status.Mux.Unlock()
+}
+
+func (stack *Stack) done() {
 	for _, wg := range stack.WaitGroups {
 		wg.Done()
 	}
