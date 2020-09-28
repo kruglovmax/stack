@@ -19,6 +19,7 @@ import (
 	"github.com/kruglovmax/stack/pkg/app"
 	"github.com/kruglovmax/stack/pkg/consts"
 	"github.com/kruglovmax/stack/pkg/log"
+	"github.com/kruglovmax/stack/pkg/types"
 	sopsDecrypt "go.mozilla.org/sops/v3/decrypt"
 	"sigs.k8s.io/yaml"
 )
@@ -174,7 +175,7 @@ func GitClone(parentWG *sync.WaitGroup, gitClonePath, gitURL, gitRef string) {
 	var gitRepo *git.Repository
 	gitRepo, err = git.PlainClone(gitClonePath, false, &git.CloneOptions{
 		URL:      gitURL,
-		Progress: os.Stderr,
+		Progress: nil,
 	})
 	if err == git.ErrRepositoryAlreadyExists {
 		return
@@ -367,6 +368,14 @@ func GetDirName(fullpath string) (dirName string) {
 // GetDirPath func
 func GetDirPath(fullpath string) (dirPath string) {
 	dirPath = filepath.Dir(fullpath)
+	return
+}
+
+// GetStackPathRelativeToTheRootStack func
+func GetStackPathRelativeToTheRootStack(stack types.Stack) (output string) {
+	var err error
+	output, err = filepath.Rel(*app.App.Config.Workdir, stack.GetWorkdir())
+	CheckIfErr(err)
 	return
 }
 

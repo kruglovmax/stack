@@ -1,11 +1,13 @@
 package app
 
 import (
+	"fmt"
 	"os"
 	"sync"
 	"time"
 
 	"github.com/kruglovmax/stack/pkg/out"
+	"github.com/kruglovmax/stack/pkg/types"
 )
 
 // App global var
@@ -14,10 +16,13 @@ var (
 )
 
 type app struct {
-	Config *appConfig
-	Mutex  *appMutex
-	StdOut *out.Output
-	StdErr *out.Output
+	Config        *appConfig
+	StacksStatus  *types.StacksStatus
+	Mutex         *appMutex
+	StacksCounter uint64
+	StdOut        *out.Output
+	StdErr        *out.Output
+	WaitGroups    map[string]*sync.WaitGroup
 }
 
 type appConfig struct {
@@ -33,7 +38,7 @@ type appConfig struct {
 type appMutex struct {
 	CurrentWorkDirMutex sync.Mutex
 	GitWorkMutex        sync.Mutex
-	GetViewMutex        sync.Mutex
+	StacksCounterMutex  sync.Mutex
 }
 
 func init() {
@@ -42,4 +47,16 @@ func init() {
 	App.Mutex = new(appMutex)
 	App.StdOut = out.New(os.Stdout)
 	App.StdErr = out.New(os.Stderr)
+	App.StacksStatus = new(types.StacksStatus)
+	App.StacksStatus.StacksStatus = make(map[string]string)
+	App.StacksCounter = 0
+	App.WaitGroups = make(map[string]*sync.WaitGroup)
+}
+
+// NewStackID func
+func NewStackID() string {
+	App.Mutex.StacksCounterMutex.Lock()
+	App.StacksCounter++
+	App.Mutex.StacksCounterMutex.Unlock()
+	return fmt.Sprintf("stack_%v", App.StacksCounter)
 }

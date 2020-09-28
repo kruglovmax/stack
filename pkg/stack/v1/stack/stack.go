@@ -24,29 +24,38 @@ import (
 
 // Stack type
 type Stack struct {
+	// WaitGroup
 	stacskWG   sync.WaitGroup
 	preExecWG  sync.WaitGroup
 	execWG     sync.WaitGroup
 	postExecWG sync.WaitGroup
 
+	// Mutex
+	getViewMutex sync.Mutex
+
+	// config
 	config        stackInputYAML
 	runItemParser types.RunItemParser
 	parentStack   types.Stack
+	stackID       string
 
-	API         string             //++
-	Name        string             //++
-	Vars        *types.StackVars   //++
-	Flags       *types.StackFlags  //++
-	Locals      *types.StackLocals //++
-	Workdir     string             //++
-	Libs        []string           //++
-	PreRun      []types.RunItem    //+
-	Run         []types.RunItem    //+
-	PostRun     []types.RunItem    //+
-	Stacks      []types.Stack      //++
-	When        string             //++
-	Wait        string             //++
+	// API
+	API         string
+	Name        string
+	Vars        *types.StackVars
+	Flags       *types.StackFlags
+	Locals      *types.StackLocals
+	Workdir     string
+	Libs        []string
+	PreRun      []types.RunItem
+	Run         []types.RunItem
+	PostRun     []types.RunItem
+	Stacks      []types.Stack
+	Status      *types.StacksStatus
+	When        string
+	Wait        string
 	WaitTimeout time.Duration
+	WaitGroups  []*sync.WaitGroup
 }
 
 // YAML view of StackConfig
@@ -67,14 +76,17 @@ type stackInputYAML struct {
 	When        string                 `json:"when,omitempty"`
 	Wait        string                 `json:"wait,omitempty"`
 	WaitTimeout string                 `json:"waitTimeout,omitempty"`
+	WaitGroups  []string               `json:"waitGroups,omitempty"`
 }
 
 type stackOutputValues struct {
 	API    string                 `json:"api,omitempty"`
+	ID     string                 `json:"id,omitempty"`
 	Name   string                 `json:"name,omitempty"`
 	Vars   map[string]interface{} `json:"vars,omitempty"`
 	Flags  map[string]interface{} `json:"flags,omitempty"`
 	Locals map[string]interface{} `json:"locals,omitempty"`
+	Status map[string]string      `json:"status,omitempty"`
 }
 
 // AddRawVarsLeft func
@@ -111,6 +123,11 @@ func (stack *Stack) GetRunItemsParser() types.RunItemParser {
 	return stack.runItemParser
 }
 
+// GetStackID func
+func (stack *Stack) GetStackID() string {
+	return stack.stackID
+}
+
 // GetVars func
 func (stack *Stack) GetVars() *types.StackVars {
 	return stack.Vars
@@ -130,14 +147,25 @@ func (stack *Stack) GetLocals() *types.StackLocals {
 func (stack *Stack) GetView() (result interface{}) {
 	var output stackOutputValues
 
+	stack.getViewMutex.Lock()
+	stack.Vars.Mux.Lock()
+	stack.Flags.Mux.Lock()
+	stack.Locals.Mux.Lock()
+	stack.Status.Mux.Lock()
+	defer stack.getViewMutex.Unlock()
+	defer stack.Vars.Mux.Unlock()
+	defer stack.Flags.Mux.Unlock()
+	defer stack.Locals.Mux.Unlock()
+	defer stack.Status.Mux.Unlock()
+
 	output.API = stack.API
 	output.Name = stack.Name
 	output.Vars = stack.Vars.Vars
 	output.Flags = stack.Flags.Vars
 	output.Locals = stack.Locals.Vars
+	output.Status = stack.Status.StacksStatus
+	output.ID = stack.GetStackID()
 
-	app.App.Mutex.GetViewMutex.Lock()
-	defer app.App.Mutex.GetViewMutex.Unlock()
 	result = misc.ToInterface(output)
 
 	return
@@ -194,6 +222,9 @@ func (stack *Stack) LoadFromString(stackYAML string, parentStack types.Stack) {
 			Str("YAML", "\n"+stackYAML).
 			Msg(consts.MessageBadStackUnsupportedAPI)
 	}
+	stack.Status.Mux.Lock()
+	stack.Status.StacksStatus[stack.stackID] = "Loaded"
+	stack.Status.Mux.Unlock()
 	return
 }
 
@@ -230,6 +261,9 @@ func (stack *Stack) LoadFromFile(stackFile string, parentStack types.Stack) {
 			Str("file", stackFile).
 			Msg(consts.MessageBadStackUnsupportedAPI)
 	}
+	stack.Status.Mux.Lock()
+	stack.Status.StacksStatus[stack.stackID] = "Loaded"
+	stack.Status.Mux.Unlock()
 	return
 }
 
@@ -241,6 +275,9 @@ func (stack *Stack) PreExec(parentWG *sync.WaitGroup) {
 	if len(stack.PreRun) > 0 {
 		log.Logger.Info().Str("Stack", stack.GetWorkdir()).Msg("preRun")
 	}
+	stack.Status.Mux.Lock()
+	stack.Status.StacksStatus[stack.stackID] = "PreRun"
+	stack.Status.Mux.Unlock()
 	for _, runItem := range stack.PreRun {
 		var wg sync.WaitGroup
 		wg.Add(1)
@@ -257,6 +294,9 @@ func (stack *Stack) Exec(parentWG *sync.WaitGroup) {
 	if len(stack.Run) > 0 {
 		log.Logger.Info().Str("Stack", stack.GetWorkdir()).Msg("Run")
 	}
+	stack.Status.Mux.Lock()
+	stack.Status.StacksStatus[stack.stackID] = "Run"
+	stack.Status.Mux.Unlock()
 	for _, runItem := range stack.Run {
 		var wg sync.WaitGroup
 		wg.Add(1)
@@ -273,6 +313,9 @@ func (stack *Stack) PostExec(parentWG *sync.WaitGroup) {
 	if len(stack.PostRun) > 0 {
 		log.Logger.Info().Str("Stack", stack.GetWorkdir()).Msg("postRun")
 	}
+	stack.Status.Mux.Lock()
+	stack.Status.StacksStatus[stack.stackID] = "PostRun"
+	stack.Status.Mux.Unlock()
 	for _, runItem := range stack.PostRun {
 		var wg sync.WaitGroup
 		wg.Add(1)
@@ -303,7 +346,13 @@ func (stack *Stack) Start(parentWG *sync.WaitGroup) {
 	stack.execWG.Wait()
 
 	// Start sub stacks
+	stack.Status.Mux.Lock()
+	stack.Status.StacksStatus[stack.stackID] = "ParseChildStacks"
+	stack.Status.Mux.Unlock()
 	stack.Stacks = ParseStacks(stack, stack.config.Stacks)
+	stack.Status.Mux.Lock()
+	stack.Status.StacksStatus[stack.stackID] = "RunChildStacks"
+	stack.Status.Mux.Unlock()
 	for _, stackItem := range stack.Stacks {
 		stack.stacskWG.Add(1)
 		go stackItem.Start(&stack.stacskWG)
@@ -313,6 +362,13 @@ func (stack *Stack) Start(parentWG *sync.WaitGroup) {
 	stack.postExecWG.Add(1)
 	go stack.PostExec(&stack.postExecWG)
 	stack.postExecWG.Wait()
+
+	stack.Status.Mux.Lock()
+	stack.Status.StacksStatus[stack.stackID] = "Done"
+	stack.Status.Mux.Unlock()
+	for _, wg := range stack.WaitGroups {
+		wg.Done()
+	}
 }
 
 func parseInputYAML(stack *Stack, input stackInputYAML, parentStack types.Stack) {
@@ -375,6 +431,11 @@ func parseInputYAML(stack *Stack, input stackInputYAML, parentStack types.Stack)
 		var err error
 		stack.WaitTimeout, err = time.ParseDuration(waitTimeout)
 		misc.CheckIfErr(err)
+	}
+	stack.Status = app.App.StacksStatus
+	stack.stackID = app.NewStackID()
+	for _, wgKey := range input.WaitGroups {
+		stack.WaitGroups = append(stack.WaitGroups, conditions.WaitGroupAdd(stack, wgKey))
 	}
 }
 

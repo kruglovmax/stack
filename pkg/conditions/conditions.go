@@ -3,15 +3,21 @@ package conditions
 import (
 	"fmt"
 	"runtime/debug"
+	"sync"
 	"time"
 
 	"github.com/davecgh/go-spew/spew"
-	"github.com/google/cel-go/cel"
+	celgo "github.com/google/cel-go/cel"
 	"github.com/google/cel-go/checker/decls"
-	"github.com/kruglovmax/stack/pkg/log"
-	"github.com/kruglovmax/stack/pkg/misc"
-	"github.com/kruglovmax/stack/pkg/types"
+	celtypes "github.com/google/cel-go/common/types"
+	celref "github.com/google/cel-go/common/types/ref"
+	"github.com/google/cel-go/interpreter/functions"
 	exprpb "google.golang.org/genproto/googleapis/api/expr/v1alpha1"
+
+	"github.com/kruglovmax/stack/pkg/app"
+	"github.com/kruglovmax/stack/pkg/cel"
+	"github.com/kruglovmax/stack/pkg/log"
+	"github.com/kruglovmax/stack/pkg/types"
 )
 
 // When func
@@ -52,51 +58,67 @@ func Wait(stack types.Stack, condition string, timeout time.Duration) (result bo
 	return
 }
 
+// WaitGroupAdd func
+func WaitGroupAdd(stack types.Stack, waitgroup string) *sync.WaitGroup {
+	wgKey := waitgroup
+	computed, err := cel.ComputeCEL(waitgroup, stack.GetView().(map[string]interface{}))
+	if _, ok := computed.(string); err == nil && ok {
+		wgKey = computed.(string)
+	}
+	wg, ok := app.App.WaitGroups[wgKey]
+	if !ok {
+		app.App.WaitGroups[wgKey] = new(sync.WaitGroup)
+		wg = app.App.WaitGroups[wgKey]
+	}
+	wg.Add(1)
+	return wg
+}
+
 func waitLoop(stack types.Stack, condition string, exit chan int) {
 	for {
 		if checkCondition(stack, condition, stack.GetView().(map[string]interface{})) {
 			break
 		}
 		time.Sleep(100 * time.Millisecond)
+		log.Logger.Trace().
+			Str("condition", condition).Msg("Waiting for")
 	}
 	exit <- 0
 }
 
 func checkCondition(stack types.Stack, condition string, varsMap map[string]interface{}) (result bool) {
-	var declarations []*exprpb.Decl
-	for key := range varsMap {
-		declarations = append(declarations, decls.NewVar(key, decls.Any))
-	}
-	envOption := cel.Declarations(declarations...)
-	env, err := cel.NewEnv(envOption)
-	misc.CheckIfErr(err)
-	ast, iss := env.Compile(condition)
-	if iss.Err() != nil {
-		log.Logger.Error().
-			Str("condition", condition).
-			Str("in stack", stack.GetWorkdir()).
-			Send()
-		log.Logger.Debug().
-			Msg(string(debug.Stack()))
-	}
-	if iss.Err() != nil {
-		log.Logger.Debug().
-			Str("condition", condition).
-			Str("in stack", stack.GetWorkdir()).
-			Msgf("Error %s\n", iss.Err().Error())
-		return
-	}
-	prg, err := env.Program(ast)
-	misc.CheckIfErr(err)
-	out, _, err := prg.Eval(varsMap)
+	var celAddon cel.CELaddons
+	waitGroupFunc := &functions.Overload{
+		Operator: "waitGroup_string",
+		Unary: func(lhs celref.Val) celref.Val {
+			wg, ok := app.App.WaitGroups[fmt.Sprint(lhs)]
+			if ok {
+				wg.Wait()
+				return celtypes.True
+			}
+			return celtypes.False
+		}}
+	celAddon.Decls = append(celAddon.Decls, decls.NewFunction("waitGroup",
+		decls.NewOverload("waitGroup_string",
+			[]*exprpb.Type{decls.String},
+			decls.String)))
+	celAddon.ProgramOption = append(celAddon.ProgramOption, celgo.Functions(waitGroupFunc))
+
+	computed, err := cel.ComputeCEL(condition, varsMap, celAddon)
+
 	if err != nil {
+		log.Logger.Debug().
+			Str("condition", condition).
+			Str("in stack", stack.GetWorkdir()).
+			Msgf("Error %s\n", err.Error())
 		return
 	}
-	value, ok := out.Value().(bool)
+	value, ok := computed.(bool)
+
 	if !ok {
 		log.Logger.Warn().
-			Str("result type", fmt.Sprintf("%T", out.Value())).
-			Str("result value", spew.Sprint(out.Value())).
+			Str("result type", fmt.Sprintf("%T", computed)).
+			Str("result value", spew.Sprint(computed)).
 			Str("type expected", "bool").
 			Str("in stack", stack.GetWorkdir()).
 			Str("condition", condition).

@@ -18,6 +18,7 @@ run: []             # список команд для выполнения _п�
 stacks: []          # список стеков, для выполнения _параллельно_, которые будут выполняться после завершения выполнения данного стека
 when: ""            # условие для выполнения стека (run && stacks)         _| See google/cel-go
 wait: ""            # условие, которое стек будет ждать для своего запуска  | https://github.com/google/cel-go
+waitGroups: []      # группы ожидания в которые входит текущий стек
 ```
 
 **Keys:**
@@ -177,6 +178,15 @@ when: vars.test1 == "value"
 wait: flags.test1 == "value1"
 ```
 
+### waitGroups
+
+```yaml
+waitGroups:
+- wg_example
+- |- # cel may be used here
+  "wg_" + name
+```
+
 ---
 
 ## Exaples
@@ -227,4 +237,4 @@ wait: flags.test1 == "value1"
 
 <!-- DEFINITIONS -->
 
-[logo]: https://github.com/kruglovmax/stack/raw/v1-alpha2/internal/stack30.png "logo"
+[logo]: https://github.com/kruglovmax/stack/raw/master/internal/stack30.png "logo"

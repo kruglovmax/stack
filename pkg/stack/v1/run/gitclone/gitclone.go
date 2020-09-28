@@ -2,6 +2,7 @@ package gitclone
 
 import (
 	"fmt"
+	"os"
 	"path/filepath"
 	"sync"
 	"time"
@@ -19,6 +20,7 @@ import (
 type gitcloneItem struct {
 	Repo        string        `json:"gitclone,omitempty"`
 	Ref         string        `json:"ref,omitempty"`
+	Dir         string        `json:"dir,omitempty"`
 	When        string        `json:"when,omitempty"`
 	Wait        string        `json:"wait,omitempty"`
 	RunTimeout  time.Duration `json:"runTimeout,omitempty"`
@@ -42,7 +44,11 @@ func (item *gitcloneItem) Exec(parentWG *sync.WaitGroup, stack types.Stack) {
 
 	var wg sync.WaitGroup
 	wg.Add(1)
-	go misc.GitClone(&wg, filepath.Join(*app.App.Config.Workdir, consts.GitCloneDir, gitcloneSubDir, item.Ref), item.Repo, item.Ref)
+	dir := item.Dir
+	if dir == "" {
+		dir = filepath.Join(*app.App.Config.Workdir, consts.GitCloneDir, gitcloneSubDir, item.Ref)
+	}
+	go misc.GitClone(&wg, dir, item.Repo, item.Ref)
 	if misc.WaitTimeout(&wg, item.RunTimeout) {
 		log.Logger.Fatal().
 			Str("stack", stack.GetWorkdir()).
@@ -79,6 +85,14 @@ func Parse(stack types.Stack, item map[string]interface{}) types.RunItem {
 	output.WaitTimeout = *app.App.Config.DefaultTimeout
 	if waitTimeout != nil {
 		output.WaitTimeout, err = time.ParseDuration(waitTimeout.(string))
+		misc.CheckIfErr(err)
+	}
+
+	if _, ok := item["dir"]; ok {
+		app.App.Mutex.CurrentWorkDirMutex.Lock()
+		os.Chdir(stack.GetWorkdir())
+		output.Dir, err = filepath.Abs(item["dir"].(string))
+		app.App.Mutex.CurrentWorkDirMutex.Unlock()
 		misc.CheckIfErr(err)
 	}
 

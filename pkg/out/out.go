@@ -9,7 +9,7 @@ import (
 )
 
 const (
-	bufSize = 100
+	bufSize = 10000
 )
 
 // Output type

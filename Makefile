@@ -40,7 +40,7 @@ ifeq (${OS}, linux)
 endif
 
 ifeq (${USER}, maxim)
-	cp build/stack ~/work/scripts/stack3
+	cp build/stack ~/work/scripts/stack4
 endif
 
 ## clean/stack: rm build/stack

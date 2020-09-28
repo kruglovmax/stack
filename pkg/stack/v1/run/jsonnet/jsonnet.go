@@ -5,13 +5,11 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
-	"runtime/debug"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/Jeffail/gabs/v2"
-	"github.com/davecgh/go-spew/spew"
 	jsonnet "github.com/google/go-jsonnet"
 	"github.com/imdario/mergo"
 	"github.com/joeycumines/go-dotnotation/dotnotation"
@@ -26,7 +24,7 @@ import (
 // jsonnetItem type
 type jsonnetItem struct {
 	Jsonnet     string        `json:"jsonnet,omitempty"`
-	WorkDir     string        `json:"workdir,omitempty"`
+	Paths       []string      `json:"paths,omitempty"`
 	Vars        interface{}   `json:"vars,omitempty"`
 	Output      []interface{} `json:"output,omitempty"`
 	When        string        `json:"when,omitempty"`
@@ -46,50 +44,74 @@ func (item *jsonnetItem) Exec(parentWG *sync.WaitGroup, stack types.Stack) {
 	if !conditions.When(stack, item.When) {
 		return
 	}
+
 	app.App.Mutex.CurrentWorkDirMutex.Lock()
-	os.Chdir(item.WorkDir)
-	var parsedString string
+	os.Chdir(stack.GetWorkdir())
+	var parsedString, jsonnetSnippet string
+	switch {
+	case item.Jsonnet != "":
+		jsonnetSnippet = item.Jsonnet
+	case item.Paths != nil:
+		switch {
+		case len(item.Paths) == 1:
+			path := item.Paths[0]
+			switch {
+			case misc.PathIsFile(path):
+				dir := filepath.Dir(path)
+				file := filepath.Base(path)
+				os.Chdir(dir)
+				var err error
+				var content []byte
+				content, err = ioutil.ReadFile(file)
+				misc.CheckIfErr(err)
+				jsonnetSnippet = string(content)
+			case misc.PathIsDir(path):
+				os.Chdir(path)
+				// TODO
+			}
+		case len(item.Paths) > 1:
+			// TODO
+		}
+	}
+
 	switch item.Vars.(type) {
 	case map[string]interface{}:
 		var wg sync.WaitGroup
 		wg.Add(1)
-		parsedString = processJsonnet(&wg, item.Vars.(map[string]interface{}), item.Jsonnet)
+		parsedString = processJsonnet(&wg, item.Vars.(map[string]interface{}), jsonnetSnippet)
 		if misc.WaitTimeout(&wg, item.RunTimeout) {
 			log.Logger.Fatal().
 				Str("stack", stack.GetWorkdir()).
 				Str("timeout", fmt.Sprint(item.RunTimeout)).
-				Msg("Gomplate waiting failed")
+				Msg("Jsonnet waiting failed")
 		}
 	case string:
 		vars, err := dotnotation.Get(stack.GetView(), item.Vars.(string))
 		misc.CheckIfErr(err)
 		var wg sync.WaitGroup
 		wg.Add(1)
-		parsedString = processJsonnet(&wg, vars, item.Jsonnet)
+		parsedString = processJsonnet(&wg, vars, jsonnetSnippet)
 		if misc.WaitTimeout(&wg, item.RunTimeout) {
 			log.Logger.Fatal().
 				Str("stack", stack.GetWorkdir()).
 				Str("timeout", fmt.Sprint(item.RunTimeout)).
-				Msg("Gomplate waiting failed")
+				Msg("Jsonnet waiting failed")
 		}
 	case nil:
 		var wg sync.WaitGroup
 		wg.Add(1)
-		parsedString = processJsonnet(&wg, stack.GetView(), item.Jsonnet)
+		parsedString = processJsonnet(&wg, stack.GetView(), jsonnetSnippet)
 		if misc.WaitTimeout(&wg, item.RunTimeout) {
 			log.Logger.Fatal().
 				Str("stack", stack.GetWorkdir()).
 				Str("timeout", fmt.Sprint(item.RunTimeout)).
-				Msg("Script waiting failed")
+				Msg("Jsonnet waiting failed")
 		}
 	default:
-		log.Logger.Trace().
-			Msg(spew.Sdump(item))
-		log.Logger.Debug().
-			Msg(string(debug.Stack()))
-		log.Logger.Fatal().
-			Msg("Unable to parse run item. Bad vars key")
+		err := fmt.Errorf("Unable to parse run item. Bad vars key")
+		misc.CheckIfErr(err)
 	}
+
 	app.App.Mutex.CurrentWorkDirMutex.Unlock()
 
 	if item.Output == nil {
@@ -192,36 +214,27 @@ func Parse(stack types.Stack, item map[string]interface{}) types.RunItem {
 	app.App.Mutex.CurrentWorkDirMutex.Lock()
 	defer app.App.Mutex.CurrentWorkDirMutex.Unlock()
 	os.Chdir(stack.GetWorkdir())
-	jsonnetLoader, jsonnetFile := func() (string, string) {
+	jsonnetSnippet, jsonnetFiles := func() (string, []string) {
+		var jsonnetFiles []string
 		switch item["jsonnet"].(type) {
 		case string:
-			return item["jsonnet"].(string), ""
+			return item["jsonnet"].(string), nil
 		case []interface{}:
 			var resultJsonnet string
-			jsonnetFile := item["jsonnet"].([]interface{})[0].(string)
-			if misc.PathIsFile(jsonnetFile) {
-				content, err := ioutil.ReadFile(jsonnetFile)
-				misc.CheckIfErr(err)
-				resultJsonnet = string(content)
-			} else {
-				err := fmt.Errorf("File not found %s", jsonnetFile)
-				misc.CheckIfErr(err)
+			for _, v := range item["jsonnet"].([]interface{}) {
+				jsonnetFiles = append(jsonnetFiles, v.(string))
 			}
-			return resultJsonnet, jsonnetFile
+			return resultJsonnet, jsonnetFiles
 		}
 		err := fmt.Errorf("Unable to parse run item")
 		misc.CheckIfErr(err)
-		return "", ""
+		return "", nil
 	}()
 
 	output := new(jsonnetItem)
-	output.Jsonnet = jsonnetLoader
-	output.WorkDir = stack.GetWorkdir()
-	if jsonnetFile != "" {
-		absFile, err := filepath.Abs(jsonnetFile)
-		misc.CheckIfErr(err)
-		output.WorkDir = filepath.Dir(absFile)
-	}
+	output.Jsonnet = jsonnetSnippet
+	output.Jsonnet = jsonnetSnippet
+	output.Paths = jsonnetFiles
 	output.Vars = item["vars"]
 	output.Output = item["output"].([]interface{})
 	whenCondition := item["when"]
