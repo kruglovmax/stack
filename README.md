@@ -183,7 +183,8 @@ wait: flags.test1 == "value1"
 ```yaml
 waitGroups:
 - wg_example
-- "wg_" + name # Можно использовать cel
+- |- # cel may be used here
+  "wg_" + name
 ```
 
 ---
