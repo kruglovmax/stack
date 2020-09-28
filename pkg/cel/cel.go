@@ -7,8 +7,14 @@ import (
 	exprpb "google.golang.org/genproto/googleapis/api/expr/v1alpha1"
 )
 
+// CELaddons type
+type CELaddons struct {
+	Decls         []*exprpb.Decl
+	ProgramOption []cel.ProgramOption
+}
+
 // ComputeCEL func
-func ComputeCEL(expression string, varsMap map[string]interface{}) (result interface{}, err error) {
+func ComputeCEL(expression string, varsMap map[string]interface{}, addons ...CELaddons) (result interface{}, err error) {
 	var declarations []*exprpb.Decl
 	var env *cel.Env
 	var prg cel.Program
@@ -16,6 +22,11 @@ func ComputeCEL(expression string, varsMap map[string]interface{}) (result inter
 
 	for key := range varsMap {
 		declarations = append(declarations, decls.NewVar(key, decls.Any))
+	}
+	if len(addons) > 0 {
+		for _, addon := range addons {
+			declarations = append(declarations, addon.Decls...)
+		}
 	}
 	envOption := cel.Declarations(declarations...)
 	env, err = cel.NewEnv(envOption)
@@ -27,7 +38,13 @@ func ComputeCEL(expression string, varsMap map[string]interface{}) (result inter
 		err = iss.Err()
 		return
 	}
-	prg, err = env.Program(ast)
+	var prgOpts []cel.ProgramOption
+	if len(addons) > 0 {
+		for _, addon := range addons {
+			prgOpts = append(prgOpts, addon.ProgramOption...)
+		}
+	}
+	prg, err = env.Program(ast, prgOpts...)
 	if err != nil {
 		return
 	}

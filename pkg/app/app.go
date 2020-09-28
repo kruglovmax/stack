@@ -22,6 +22,7 @@ type app struct {
 	StacksCounter uint64
 	StdOut        *out.Output
 	StdErr        *out.Output
+	WaitGroups    map[string]*sync.WaitGroup
 }
 
 type appConfig struct {
@@ -49,6 +50,7 @@ func init() {
 	App.StacksStatus = new(types.StacksStatus)
 	App.StacksStatus.StacksStatus = make(map[string]string)
 	App.StacksCounter = 0
+	App.WaitGroups = make(map[string]*sync.WaitGroup)
 }
 
 // NewStackID func

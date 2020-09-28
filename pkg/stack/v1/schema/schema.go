@@ -14,6 +14,12 @@ const (
 $schema: http://json-schema.org/draft/2019-09/schema#
 
 definitions:
+  waitGroups:
+    type: array
+    uniqueItems: true
+    items:
+      type: string
+      minLength: 1
   outputType:
     array:
     uniqueItems: true
@@ -302,6 +308,7 @@ definitions:
       libs: { "$ref": "#/definitions/libs" }
       when: { "$ref": "#/definitions/when" }
       wait: { "$ref": "#/definitions/when" }
+      waitGroups: { "$ref": "#/definitions/waitGroups" }
       waitTimeout: { "$ref": "#/definitions/timeout" }
 
 

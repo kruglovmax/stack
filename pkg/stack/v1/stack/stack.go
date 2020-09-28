@@ -55,6 +55,7 @@ type Stack struct {
 	When        string
 	Wait        string
 	WaitTimeout time.Duration
+	WaitGroups  []*sync.WaitGroup
 }
 
 // YAML view of StackConfig
@@ -75,6 +76,7 @@ type stackInputYAML struct {
 	When        string                 `json:"when,omitempty"`
 	Wait        string                 `json:"wait,omitempty"`
 	WaitTimeout string                 `json:"waitTimeout,omitempty"`
+	WaitGroups  []string               `json:"waitGroups,omitempty"`
 }
 
 type stackOutputValues struct {
@@ -364,6 +366,9 @@ func (stack *Stack) Start(parentWG *sync.WaitGroup) {
 	stack.Status.Mux.Lock()
 	stack.Status.StacksStatus[stack.stackID] = "Done"
 	stack.Status.Mux.Unlock()
+	for _, wg := range stack.WaitGroups {
+		wg.Done()
+	}
 }
 
 func parseInputYAML(stack *Stack, input stackInputYAML, parentStack types.Stack) {
@@ -429,6 +434,9 @@ func parseInputYAML(stack *Stack, input stackInputYAML, parentStack types.Stack)
 	}
 	stack.Status = app.App.StacksStatus
 	stack.stackID = app.NewStackID()
+	for _, wgKey := range input.WaitGroups {
+		stack.WaitGroups = append(stack.WaitGroups, conditions.WaitGroupAdd(stack, wgKey))
+	}
 }
 
 func parseStackItems(stack types.Stack, item interface{}, namePrefix string) (output []types.Stack) {
