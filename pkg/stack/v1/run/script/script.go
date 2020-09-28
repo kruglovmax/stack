@@ -17,7 +17,7 @@ import (
 	"github.com/imdario/mergo"
 	"github.com/joeycumines/go-dotnotation/dotnotation"
 	"github.com/kruglovmax/stack/pkg/app"
-	"github.com/kruglovmax/stack/pkg/cel"
+	"github.com/kruglovmax/stack/pkg/conditions"
 	"github.com/kruglovmax/stack/pkg/consts"
 	"github.com/kruglovmax/stack/pkg/log"
 	"github.com/kruglovmax/stack/pkg/misc"
@@ -41,10 +41,10 @@ func (item *scriptItem) Exec(parentWG *sync.WaitGroup, stack types.Stack) {
 	if parentWG != nil {
 		defer parentWG.Done()
 	}
-	if !cel.Wait(stack, item.Wait, item.WaitTimeout) {
+	if !conditions.Wait(stack, item.Wait, item.WaitTimeout) {
 		return
 	}
-	if !cel.When(stack, item.When) {
+	if !conditions.When(stack, item.When) {
 		return
 	}
 

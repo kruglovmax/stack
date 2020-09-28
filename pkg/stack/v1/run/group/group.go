@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"github.com/kruglovmax/stack/pkg/app"
-	"github.com/kruglovmax/stack/pkg/cel"
+	"github.com/kruglovmax/stack/pkg/conditions"
 	"github.com/kruglovmax/stack/pkg/log"
 	"github.com/kruglovmax/stack/pkg/misc"
 	"github.com/kruglovmax/stack/pkg/types"
@@ -27,10 +27,10 @@ func (item *groupItem) Exec(parentWG *sync.WaitGroup, stack types.Stack) {
 	if parentWG != nil {
 		defer parentWG.Done()
 	}
-	if !cel.Wait(stack, item.Wait, item.WaitTimeout) {
+	if !conditions.Wait(stack, item.Wait, item.WaitTimeout) {
 		return
 	}
-	if !cel.When(stack, item.When) {
+	if !conditions.When(stack, item.When) {
 		return
 	}
 	var wg sync.WaitGroup
