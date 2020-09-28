@@ -1,4 +1,4 @@
-package conditions
+package cel
 
 import (
 	"fmt"

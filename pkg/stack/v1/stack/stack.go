@@ -9,7 +9,7 @@ import (
 
 	"github.com/imdario/mergo"
 	"github.com/kruglovmax/stack/pkg/app"
-	"github.com/kruglovmax/stack/pkg/conditions"
+	"github.com/kruglovmax/stack/pkg/cel"
 	"github.com/kruglovmax/stack/pkg/consts"
 	"github.com/kruglovmax/stack/pkg/log"
 	"github.com/kruglovmax/stack/pkg/misc"
@@ -332,10 +332,10 @@ func (stack *Stack) Start(parentWG *sync.WaitGroup) {
 	go stack.PreExec(&stack.preExecWG)
 	stack.preExecWG.Wait()
 
-	if !conditions.Wait(stack, stack.Wait, stack.WaitTimeout) {
+	if !cel.Wait(stack, stack.Wait, stack.WaitTimeout) {
 		return
 	}
-	if !conditions.When(stack, stack.When) {
+	if !cel.When(stack, stack.When) {
 		return
 	}
 
