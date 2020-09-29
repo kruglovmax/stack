@@ -2,7 +2,29 @@
 
 Stack is a Tool About Creating Kindda
 
-**Overview:**
+- [stack tool !stack tool](#stack-tool-stack-tool)
+  - [stack.yaml](#stackyaml)
+    - [api](#api)
+    - [libs](#libs)
+    - [name](#name)
+    - [vars](#vars)
+    - [varsFrom](#varsfrom)
+    - [flags](#flags)
+    - [locals](#locals)
+    - [run](#run)
+    - [stacks](#stacks)
+    - [when](#when)
+    - [wait](#wait)
+    - [waitGroups](#waitgroups)
+  - [Exaples](#exaples)
+  - [Used libraries](#used-libraries)
+    - [google/cel-go](#googlecel-go)
+    - [hairyhenderson/gomplate](#hairyhendersongomplate)
+    - [google/go-jsonnet](#googlego-jsonnet)
+    - [flosch/pongo2](#floschpongo2)
+  - [Go project layout](#go-project-layout)
+  - [Inspired by](#inspired-by)
+  - [Thanx](#thanx)
 
 ## stack.yaml
 
@@ -20,8 +42,6 @@ when: ""            # условие для выполнения стека (run
 wait: ""            # условие, которое стек будет ждать для своего запуска  | https://github.com/google/cel-go
 waitGroups: []      # группы ожидания в которые входит текущий стек
 ```
-
-**Keys:**
 
 ### api
 
@@ -190,6 +210,8 @@ waitGroups:
 ---
 
 ## Exaples
+
+[stack-examples](https://github.com/kruglovmax/stack-examples)
 <!-- TODO -->
 ```yaml
 ```
