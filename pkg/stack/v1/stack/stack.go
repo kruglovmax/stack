@@ -80,13 +80,14 @@ type stackInputYAML struct {
 }
 
 type stackOutputValues struct {
-	API    string                 `json:"api,omitempty"`
-	ID     string                 `json:"id,omitempty"`
-	Name   string                 `json:"name,omitempty"`
-	Vars   map[string]interface{} `json:"vars,omitempty"`
-	Flags  map[string]interface{} `json:"flags,omitempty"`
-	Locals map[string]interface{} `json:"locals,omitempty"`
-	Status map[string]string      `json:"status,omitempty"`
+	API     string                 `json:"api,omitempty"`
+	ID      string                 `json:"id,omitempty"`
+	Name    string                 `json:"name,omitempty"`
+	Workdir string                 `json:"workdir,omitempty"`
+	Vars    map[string]interface{} `json:"vars,omitempty"`
+	Flags   map[string]interface{} `json:"flags,omitempty"`
+	Locals  map[string]interface{} `json:"locals,omitempty"`
+	Status  map[string]string      `json:"status,omitempty"`
 }
 
 // AddRawVarsLeft func
@@ -165,6 +166,7 @@ func (stack *Stack) GetView() (result interface{}) {
 	output.Locals = stack.Locals.Vars
 	output.Status = stack.Status.StacksStatus
 	output.ID = stack.GetStackID()
+	output.Workdir = stack.GetWorkdir()
 
 	result = misc.ToInterface(output)
 
