@@ -338,10 +338,10 @@ func (stack *Stack) Start(parentWG *sync.WaitGroup) {
 	go stack.PreExec(&stack.preExecWG)
 	stack.preExecWG.Wait()
 
-	if !conditions.Wait(stack, stack.Wait, stack.WaitTimeout) {
+	if !conditions.When(stack, stack.When) {
 		return
 	}
-	if !conditions.When(stack, stack.When) {
+	if !conditions.Wait(stack, stack.Wait, stack.WaitTimeout) {
 		return
 	}
 
@@ -502,7 +502,7 @@ func isStack(item interface{}) bool {
 	switch item.(type) {
 	case map[string]interface{}:
 		sp := item.(map[string]interface{})
-		if sp["name"] != nil && (sp["run"] != nil || sp["stacks"] != nil || sp["flags"] != nil) {
+		if sp["name"] != nil && (sp["run"] != nil || sp["stacks"] != nil || sp["flags"] != nil || sp["vars"] != nil || sp["locals"] != nil) {
 			return true
 		}
 	default:

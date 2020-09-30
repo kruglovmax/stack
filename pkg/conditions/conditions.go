@@ -20,6 +20,8 @@ import (
 	"github.com/kruglovmax/stack/pkg/types"
 )
 
+const sleepTime = 100 * time.Millisecond
+
 // When func
 func When(stack types.Stack, condition string) (result bool) {
 	if condition == "" {
@@ -79,7 +81,7 @@ func waitLoop(stack types.Stack, condition string, exit chan int) {
 		if checkCondition(stack, condition, stack.GetView().(map[string]interface{})) {
 			break
 		}
-		time.Sleep(100 * time.Millisecond)
+		time.Sleep(sleepTime)
 		log.Logger.Trace().
 			Str("condition", condition).Msg("Waiting for")
 	}
@@ -93,6 +95,8 @@ func checkCondition(stack types.Stack, condition string, varsMap map[string]inte
 		Unary: func(lhs celref.Val) celref.Val {
 			wg, ok := app.App.WaitGroups[fmt.Sprint(lhs)]
 			if ok {
+				log.Logger.Trace().
+					Str("condition", condition).Msg("Waiting for")
 				wg.Wait()
 				return celtypes.True
 			}
@@ -101,7 +105,7 @@ func checkCondition(stack types.Stack, condition string, varsMap map[string]inte
 	celAddon.Decls = append(celAddon.Decls, decls.NewFunction("waitGroup",
 		decls.NewOverload("waitGroup_string",
 			[]*exprpb.Type{decls.String},
-			decls.String)))
+			decls.Bool)))
 	celAddon.ProgramOption = append(celAddon.ProgramOption, celgo.Functions(waitGroupFunc))
 
 	computed, err := cel.ComputeCEL(condition, varsMap, celAddon)
