@@ -26,7 +26,6 @@ require (
 	github.com/xeipuuv/gojsonschema v1.2.0
 	go.mozilla.org/sops/v3 v3.6.0
 	google.golang.org/genproto v0.0.0-20200618031413-b414f8b61790
-	gopkg.in/yaml.v2 v2.3.0
 	k8s.io/helm v2.16.10+incompatible
 	sigs.k8s.io/yaml v1.2.0
 )

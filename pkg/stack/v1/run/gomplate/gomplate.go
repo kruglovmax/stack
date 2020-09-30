@@ -41,10 +41,10 @@ func (item *gomplateItem) Exec(parentWG *sync.WaitGroup, stack types.Stack) {
 	if parentWG != nil {
 		defer parentWG.Done()
 	}
-	if !conditions.Wait(stack, item.Wait, item.WaitTimeout) {
+	if !conditions.When(stack, item.When) {
 		return
 	}
-	if !conditions.When(stack, item.When) {
+	if !conditions.Wait(stack, item.Wait, item.WaitTimeout) {
 		return
 	}
 	app.App.Mutex.CurrentWorkDirMutex.Lock()
