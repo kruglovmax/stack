@@ -135,7 +135,8 @@ func (item *gomplateItem) Exec(parentWG *sync.WaitGroup, stack types.Stack) {
 						setVar.SetP(value, key)
 					}
 					stack.GetFlags().Mux.Lock()
-					mergo.Merge(&stack.GetFlags().Vars, setVar.Data().(map[string]interface{}), mergo.WithOverwriteWithEmptyValue)
+					err := mergo.Merge(&stack.GetFlags().Vars, setVar.Data().(map[string]interface{}), mergo.WithOverwriteWithEmptyValue)
+					misc.CheckIfErr(err)
 					stack.GetFlags().Mux.Unlock()
 				case strings.HasPrefix(yml2var, "locals"):
 					key := strings.TrimPrefix(strings.TrimPrefix(yml2var, "locals"), ".")
@@ -146,7 +147,8 @@ func (item *gomplateItem) Exec(parentWG *sync.WaitGroup, stack types.Stack) {
 						setVar.SetP(value, key)
 					}
 					stack.GetLocals().Mux.Lock()
-					mergo.Merge(&stack.GetLocals().Vars, setVar.Data().(map[string]interface{}), mergo.WithOverwriteWithEmptyValue)
+					err := mergo.Merge(&stack.GetLocals().Vars, setVar.Data().(map[string]interface{}), mergo.WithOverwriteWithEmptyValue)
+					misc.CheckIfErr(err)
 					stack.GetLocals().Mux.Unlock()
 				default:
 					log.Logger.Fatal().
@@ -168,14 +170,16 @@ func (item *gomplateItem) Exec(parentWG *sync.WaitGroup, stack types.Stack) {
 					setVar := gabs.New()
 					setVar.SetP(parsedString, key)
 					stack.GetFlags().Mux.Lock()
-					mergo.Merge(&stack.GetFlags().Vars, setVar.Data().(map[string]interface{}), mergo.WithOverwriteWithEmptyValue)
+					err := mergo.Merge(&stack.GetFlags().Vars, setVar.Data().(map[string]interface{}), mergo.WithOverwriteWithEmptyValue)
+					misc.CheckIfErr(err)
 					stack.GetFlags().Mux.Unlock()
 				case strings.HasPrefix(str2var, "locals."):
 					key := strings.TrimPrefix(str2var, "locals.")
 					setVar := gabs.New()
 					setVar.SetP(parsedString, key)
 					stack.GetLocals().Mux.Lock()
-					mergo.Merge(&stack.GetLocals().Vars, setVar.Data().(map[string]interface{}), mergo.WithOverwriteWithEmptyValue)
+					err := mergo.Merge(&stack.GetLocals().Vars, setVar.Data().(map[string]interface{}), mergo.WithOverwriteWithEmptyValue)
+					misc.CheckIfErr(err)
 					stack.GetLocals().Mux.Unlock()
 				default:
 					log.Logger.Fatal().
