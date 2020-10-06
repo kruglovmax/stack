@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/imdario/mergo"
+	"github.com/joeycumines/go-dotnotation/dotnotation"
 	"github.com/kruglovmax/stack/pkg/app"
 	"github.com/kruglovmax/stack/pkg/conditions"
 	"github.com/kruglovmax/stack/pkg/consts"
@@ -420,7 +421,8 @@ func parseInputYAML(stack *Stack, input stackInputYAML, parentStack types.Stack)
 
 	stack.Flags = vars.FlagsGlobal
 	stack.GetFlags().Mux.Lock()
-	mergo.Merge(&stack.Flags.Vars, input.Flags)
+	err := mergo.Merge(&stack.Flags.Vars, input.Flags)
+	misc.CheckIfErr(err)
 	stack.GetFlags().Mux.Unlock()
 
 	stack.Locals = new(types.StackLocals)
@@ -479,7 +481,8 @@ func parseStackItems(stack types.Stack, item interface{}, namePrefix string) (ou
 		}
 		return
 	case map[string]interface{}:
-		if isStack(item) { // parse inline Stack
+		switch {
+		case isStack(item): // parse inline Stack
 			newStackConfig := item.(map[string]interface{})
 			if newStackConfig["api"] == nil {
 				newStackConfig["api"] = stack.GetAPI()
@@ -488,7 +491,39 @@ func parseStackItems(stack types.Stack, item interface{}, namePrefix string) (ou
 			newStack.runItemParser = parser.RunItemParser
 			newStack.LoadFromString(misc.ToYAML(newStackConfig), stack)
 			output = append(output, newStack)
-		} else {
+		case isFunc(item): // parse stack with Args
+			var stackDir string
+			ss := item.(map[string]interface{})
+			var itemKey, itemValue string
+			for k, v := range ss {
+				itemKey = k
+				itemValue = v.(string)
+			}
+			for _, libDir := range stack.GetLibs() {
+				stackDir = filepath.Join(libDir, namePrefix, itemKey)
+				if !misc.PathIsDir(stackDir) {
+					stackDir = ""
+				}
+			}
+			newStack := new(Stack)
+			newStack.runItemParser = parser.RunItemParser
+			newStack.parentStack = stack
+			newStack.LoadFromFile(misc.FindStackFileInDir(stackDir), stack)
+			vars, err := dotnotation.Get(stack.GetView(), itemValue)
+			misc.CheckIfErr(err)
+			newStack.GetLocals().Mux.Lock()
+			err = mergo.Merge(&newStack.GetLocals().Vars, vars, mergo.WithOverwriteWithEmptyValue)
+			if err != nil {
+				log.Logger.Error().
+					Str("stack", stack.GetWorkdir()).
+					Str("sub stack", itemKey).
+					Str("vars path", itemValue).
+					Msg("Var must be map[string]interface{} type.")
+			}
+			misc.CheckIfErr(err)
+			newStack.GetLocals().Mux.Unlock()
+			output = append(output, newStack)
+		default:
 			for k, v := range item.(map[string]interface{}) {
 				output = append(output, parseStackItems(stack, v, filepath.Join(namePrefix, k))...)
 			}
@@ -509,4 +544,23 @@ func isStack(item interface{}) bool {
 		return false
 	}
 	return false
+}
+
+func isFunc(item interface{}) bool {
+	switch item.(type) {
+	case map[string]interface{}:
+		if len(item.(map[string]interface{})) == 1 {
+			for _, v := range item.(map[string]interface{}) {
+				switch v.(type) {
+				case string:
+				default:
+					return false
+				}
+			}
+			return true
+		}
+		return false
+	default:
+		return false
+	}
 }

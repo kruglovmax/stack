@@ -22,7 +22,7 @@ import (
 )
 
 const (
-	version = "v0.6.0"
+	version = "v0.6.7"
 	product = "stack"
 )
 

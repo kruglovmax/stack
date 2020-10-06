@@ -183,6 +183,7 @@ stacks:
     - cluster-autoscaler
     - eks-arm64
     - external-dns
+    - chart: locals.chart_spec
 ```
 
 ### when

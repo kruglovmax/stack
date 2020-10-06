@@ -56,6 +56,13 @@ definitions:
       anyOf:
       - type: string
         minLength: 1
+      - type: object
+        minProperties: 1
+        maxProperties: 1
+        patternProperties:
+          ".*":
+            type: string
+            minLength: 1
       - allOf:
         - { "$ref": "#/definitions/stack" }
         - required: ["name"]
