@@ -101,11 +101,18 @@ func (item *scriptItem) Exec(parentWG *sync.WaitGroup, stack types.Stack) {
 	if misc.WaitTimeout(&wg, runTimeout) {
 		log.Logger.Fatal().
 			Str("stack", stack.GetWorkdir()).
+			Str("script", item.Script).
 			Str("timeout", fmt.Sprint(runTimeout)).
 			Msg("Script waiting failed")
 	}
 
 	err = cmd.Wait()
+	if err != nil {
+		log.Logger.Error().
+			Str("stack", stack.GetWorkdir()).
+			Str("script", item.Script).
+			Msg("Error in")
+	}
 	misc.CheckIfErr(err)
 }
 

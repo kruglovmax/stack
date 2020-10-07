@@ -48,7 +48,7 @@ func (item *gitcloneItem) Exec(parentWG *sync.WaitGroup, stack types.Stack) {
 	if dir == "" {
 		dir = filepath.Join(*app.App.Config.Workdir, consts.GitCloneDir, gitcloneSubDir, item.Ref)
 	}
-	go misc.GitClone(&wg, dir, item.Repo, item.Ref)
+	go misc.GitClone(&wg, dir, item.Repo, item.Ref, true, true)
 	if misc.WaitTimeout(&wg, item.RunTimeout) {
 		log.Logger.Fatal().
 			Str("stack", stack.GetWorkdir()).

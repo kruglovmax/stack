@@ -20,6 +20,7 @@ type Stack interface {
 	GetAPI() string
 	GetLibs() []string
 	GetName() string
+	GetInput() *StackInput
 	GetVars() *StackVars
 	GetFlags() *StackFlags
 	GetLocals() *StackLocals
@@ -44,10 +45,16 @@ type StackFlags struct {
 	Mux  sync.Mutex
 }
 
-// StackLocals (global vars)
+// StackLocals type
 type StackLocals struct {
 	Vars map[string]interface{}
 	Mux  sync.Mutex
+}
+
+// StackInput type
+type StackInput struct {
+	Input interface{}
+	Mux   sync.Mutex
 }
 
 // StackExitCode of stack

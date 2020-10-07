@@ -81,7 +81,7 @@ func (item *gomplateItem) Exec(parentWG *sync.WaitGroup, stack types.Stack) {
 			log.Logger.Fatal().
 				Str("stack", stack.GetWorkdir()).
 				Str("timeout", fmt.Sprint(item.RunTimeout)).
-				Msg("Script waiting failed")
+				Msg("Gomplate waiting failed")
 		}
 	default:
 		log.Logger.Trace().
