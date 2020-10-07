@@ -71,7 +71,7 @@ func parseLibsItem(input interface{}, workdir string) (libPath string, err error
 
 			var wg sync.WaitGroup
 			wg.Add(1)
-			misc.GitClone(&wg, gitClonePath, gitURL, gitRef)
+			misc.GitClone(&wg, gitClonePath, gitURL, gitRef, false, false)
 			misc.WaitTimeout(&wg, *app.App.Config.DefaultTimeout)
 
 			libPath = filepath.Clean(filepath.Join(gitClonePath, gitPath))

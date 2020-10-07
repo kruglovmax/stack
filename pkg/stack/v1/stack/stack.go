@@ -39,10 +39,12 @@ type Stack struct {
 	runItemParser types.RunItemParser
 	parentStack   types.Stack
 	stackID       string
+	waitGroups    []string
 
 	// API
 	API         string
 	Name        string
+	Input       *types.StackInput
 	Vars        *types.StackVars
 	Flags       *types.StackFlags
 	Locals      *types.StackLocals
@@ -85,6 +87,7 @@ type stackOutputValues struct {
 	ID      string                 `json:"id,omitempty"`
 	Name    string                 `json:"name,omitempty"`
 	Workdir string                 `json:"workdir,omitempty"`
+	Input   interface{}            `json:"input,omitempty"`
 	Vars    map[string]interface{} `json:"vars,omitempty"`
 	Flags   map[string]interface{} `json:"flags,omitempty"`
 	Locals  map[string]interface{} `json:"locals,omitempty"`
@@ -130,6 +133,11 @@ func (stack *Stack) GetStackID() string {
 	return stack.stackID
 }
 
+// GetInput func
+func (stack *Stack) GetInput() *types.StackInput {
+	return stack.Input
+}
+
 // GetVars func
 func (stack *Stack) GetVars() *types.StackVars {
 	return stack.Vars
@@ -162,6 +170,7 @@ func (stack *Stack) GetView() (result interface{}) {
 
 	output.API = stack.API
 	output.Name = stack.Name
+	output.Input = stack.Input.Input
 	output.Vars = stack.Vars.Vars
 	output.Flags = stack.Flags.Vars
 	output.Locals = stack.Locals.Vars
@@ -346,6 +355,10 @@ func (stack *Stack) Start(parentWG *sync.WaitGroup) {
 		return
 	}
 
+	for _, wgKey := range stack.waitGroups {
+		stack.WaitGroups = append(stack.WaitGroups, conditions.WaitGroupAdd(stack, wgKey))
+	}
+
 	stack.execWG.Add(1)
 	go stack.Exec(&stack.execWG)
 	stack.execWG.Wait()
@@ -425,6 +438,8 @@ func parseInputYAML(stack *Stack, input stackInputYAML, parentStack types.Stack)
 	misc.CheckIfErr(err)
 	stack.GetFlags().Mux.Unlock()
 
+	stack.Input = new(types.StackInput)
+
 	stack.Locals = new(types.StackLocals)
 	stack.Locals.Vars = input.Locals
 
@@ -443,9 +458,7 @@ func parseInputYAML(stack *Stack, input stackInputYAML, parentStack types.Stack)
 	}
 	stack.Status = app.App.StacksStatus
 	stack.stackID = app.NewStackID()
-	for _, wgKey := range input.WaitGroups {
-		stack.WaitGroups = append(stack.WaitGroups, conditions.WaitGroupAdd(stack, wgKey))
-	}
+	stack.waitGroups = input.WaitGroups
 }
 
 func parseStackItems(stack types.Stack, item interface{}, namePrefix string) (output []types.Stack) {
@@ -511,17 +524,9 @@ func parseStackItems(stack types.Stack, item interface{}, namePrefix string) (ou
 			newStack.LoadFromFile(misc.FindStackFileInDir(stackDir), stack)
 			vars, err := dotnotation.Get(stack.GetView(), itemValue)
 			misc.CheckIfErr(err)
-			newStack.GetLocals().Mux.Lock()
-			err = mergo.Merge(&newStack.GetLocals().Vars, vars, mergo.WithOverwriteWithEmptyValue)
-			if err != nil {
-				log.Logger.Error().
-					Str("stack", stack.GetWorkdir()).
-					Str("sub stack", itemKey).
-					Str("vars path", itemValue).
-					Msg("Var must be map[string]interface{} type.")
-			}
-			misc.CheckIfErr(err)
-			newStack.GetLocals().Mux.Unlock()
+			newStack.GetInput().Mux.Lock()
+			newStack.Input.Input = vars
+			newStack.GetInput().Mux.Unlock()
 			output = append(output, newStack)
 		default:
 			for k, v := range item.(map[string]interface{}) {

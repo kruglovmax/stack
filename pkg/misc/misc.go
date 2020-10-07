@@ -162,15 +162,16 @@ func CheckIfErr(err error) {
 }
 
 // GitClone func
-func GitClone(parentWG *sync.WaitGroup, gitClonePath, gitURL, gitRef string) {
+func GitClone(parentWG *sync.WaitGroup, gitClonePath, gitURL, gitRef string, fetchIfExists bool, noWaitForOthers bool) {
 	if parentWG != nil {
 		defer parentWG.Done()
 	}
 
 	var err error
-	app.App.Mutex.GitWorkMutex.Lock()
-	defer app.App.Mutex.GitWorkMutex.Unlock()
-
+	if !noWaitForOthers {
+		app.App.Mutex.GitWorkMutex.Lock()
+		defer app.App.Mutex.GitWorkMutex.Unlock()
+	}
 	os.MkdirAll(gitClonePath, os.ModePerm)
 	var gitRepo *git.Repository
 	gitRepo, err = git.PlainClone(gitClonePath, false, &git.CloneOptions{
@@ -178,13 +179,16 @@ func GitClone(parentWG *sync.WaitGroup, gitClonePath, gitURL, gitRef string) {
 		Progress: nil,
 	})
 	if err == git.ErrRepositoryAlreadyExists {
-		return
 		// fetch repo
-		// gitRepo, err = git.PlainOpen(gitClonePath)
-		// if err != nil {
-		// 	return
-		// }
-		// err = gitRepo.Fetch(&git.FetchOptions{Progress: os.Stderr})
+		if fetchIfExists {
+			gitRepo, err = git.PlainOpen(gitClonePath)
+			if err != nil {
+				return
+			}
+			err = gitRepo.Fetch(&git.FetchOptions{Progress: os.Stderr})
+		} else {
+			return
+		}
 	}
 	if err != nil && err != git.NoErrAlreadyUpToDate {
 		return
