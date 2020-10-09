@@ -58,7 +58,6 @@ definitions:
         minLength: 1
       - type: object
         minProperties: 1
-        maxProperties: 1
         patternProperties:
           ".*":
             type: string
@@ -73,6 +72,12 @@ definitions:
       - { "$ref": "#/definitions/subStackWithChilds" }
   subStackWithChilds:
     anyOf:
+    - type: object
+      minProperties: 1
+      patternProperties:
+        ".*":
+          type: string
+          minLength: 1
     - type: object
       additionalProperties: false
       minProperties: 1
@@ -311,6 +316,7 @@ definitions:
       preRun: { "$ref": "#/definitions/run" }
       run: { "$ref": "#/definitions/run" }
       postRun: { "$ref": "#/definitions/run" }
+      pstacks: { "$ref": "#/definitions/stacks" }
       stacks: { "$ref": "#/definitions/stacks" }
       libs: { "$ref": "#/definitions/libs" }
       when: { "$ref": "#/definitions/when" }

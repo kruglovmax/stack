@@ -34,10 +34,23 @@ type scriptItem struct {
 	Wait        string        `json:"wait,omitempty"`
 	RunTimeout  time.Duration `json:"runTimeout,omitempty"`
 	WaitTimeout time.Duration `json:"waitTimeout,omitempty"`
+
+	rawItem map[string]interface{}
+	stack   types.Stack
+}
+
+// New func
+func New(stack types.Stack, rawItem map[string]interface{}) types.RunItem {
+	item := new(scriptItem)
+	item.rawItem = rawItem
+	item.stack = stack
+
+	return item
 }
 
 // Exec func
 func (item *scriptItem) Exec(parentWG *sync.WaitGroup, stack types.Stack) {
+	item.parse()
 	if parentWG != nil {
 		defer parentWG.Done()
 	}
@@ -56,7 +69,9 @@ func (item *scriptItem) Exec(parentWG *sync.WaitGroup, stack types.Stack) {
 		err := ioutil.WriteFile(varsFile.Name(), []byte(misc.ToJSON(item.Vars.(map[string]interface{}))), 0600)
 		misc.CheckIfErr(err)
 	case string:
-		vars, err := dotnotation.Get(stack.GetView(), item.Vars.(string))
+		stackMap := stack.GetView().(map[string]interface{})
+		stackMap["stack"] = stackMap
+		vars, err := dotnotation.Get(stackMap, item.Vars.(string))
 		misc.CheckIfErr(err)
 		err = ioutil.WriteFile(varsFile.Name(), []byte(misc.ToJSON(vars)), 0600)
 		misc.CheckIfErr(err)
@@ -165,8 +180,9 @@ func (item *scriptItem) getScriptOutput(stack types.Stack, output *bufio.Scanner
 		err := yaml.Unmarshal([]byte(outBuffer.String()), &value)
 		misc.CheckIfErr(err)
 		switch {
-		case strings.HasPrefix(yml2var, "vars"):
-			key := strings.TrimPrefix(strings.TrimPrefix(yml2var, "vars"), ".")
+		case strings.HasPrefix(yml2var, "vars") || strings.HasPrefix(yml2var, "stack.vars"):
+			key := strings.TrimPrefix(yml2var, "stack.")
+			key = strings.TrimPrefix(strings.TrimPrefix(yml2var, "vars"), ".")
 			setVar := gabs.New()
 			if key == "" {
 				setVar.Set(value)
@@ -174,8 +190,9 @@ func (item *scriptItem) getScriptOutput(stack types.Stack, output *bufio.Scanner
 				setVar.SetP(value, key)
 			}
 			stack.AddRawVarsRight(setVar.Data().(map[string]interface{}))
-		case strings.HasPrefix(yml2var, "flags"):
-			key := strings.TrimPrefix(strings.TrimPrefix(yml2var, "flags"), ".")
+		case strings.HasPrefix(yml2var, "flags") || strings.HasPrefix(yml2var, "stack.flags"):
+			key := strings.TrimPrefix(yml2var, "stack.")
+			key = strings.TrimPrefix(strings.TrimPrefix(yml2var, "flags"), ".")
 			setVar := gabs.New()
 			if key == "" {
 				setVar.Set(value)
@@ -186,8 +203,9 @@ func (item *scriptItem) getScriptOutput(stack types.Stack, output *bufio.Scanner
 			err := mergo.Merge(&stack.GetFlags().Vars, setVar.Data().(map[string]interface{}), mergo.WithOverwriteWithEmptyValue)
 			misc.CheckIfErr(err)
 			stack.GetFlags().Mux.Unlock()
-		case strings.HasPrefix(yml2var, "locals"):
-			key := strings.TrimPrefix(strings.TrimPrefix(yml2var, "locals"), ".")
+		case strings.HasPrefix(yml2var, "locals") || strings.HasPrefix(yml2var, "stack.locals"):
+			key := strings.TrimPrefix(yml2var, "stack.")
+			key = strings.TrimPrefix(strings.TrimPrefix(yml2var, "locals"), ".")
 			setVar := gabs.New()
 			if key == "" {
 				setVar.Set(value)
@@ -208,21 +226,24 @@ func (item *scriptItem) getScriptOutput(stack types.Stack, output *bufio.Scanner
 	if str2var != "" {
 		value := outBuffer.String()
 		switch {
-		case strings.HasPrefix(str2var, "vars."):
-			key := strings.TrimPrefix(str2var, "vars.")
+		case strings.HasPrefix(str2var, "vars.") || strings.HasPrefix(str2var, "stack.vars."):
+			key := strings.TrimPrefix(yml2var, "stack.")
+			key = strings.TrimPrefix(str2var, "vars.")
 			setVar := gabs.New()
 			setVar.SetP(value, key)
 			stack.AddRawVarsRight(setVar.Data().(map[string]interface{}))
-		case strings.HasPrefix(str2var, "flags."):
-			key := strings.TrimPrefix(str2var, "flags.")
+		case strings.HasPrefix(str2var, "flags.") || strings.HasPrefix(str2var, "stack.flags."):
+			key := strings.TrimPrefix(yml2var, "stack.")
+			key = strings.TrimPrefix(str2var, "flags.")
 			setVar := gabs.New()
 			setVar.SetP(value, key)
 			stack.GetFlags().Mux.Lock()
 			err := mergo.Merge(&stack.GetFlags().Vars, setVar.Data().(map[string]interface{}), mergo.WithOverwriteWithEmptyValue)
 			misc.CheckIfErr(err)
 			stack.GetFlags().Mux.Unlock()
-		case strings.HasPrefix(str2var, "locals."):
-			key := strings.TrimPrefix(str2var, "locals.")
+		case strings.HasPrefix(str2var, "locals.") || strings.HasPrefix(str2var, "stack.locals."):
+			key := strings.TrimPrefix(yml2var, "stack.")
+			key = strings.TrimPrefix(str2var, "locals.")
 			setVar := gabs.New()
 			setVar.SetP(value, key)
 			stack.GetLocals().Mux.Lock()
@@ -241,43 +262,39 @@ func (item *scriptItem) getScriptOutput(stack types.Stack, output *bufio.Scanner
 	app.App.StdErr.FinishOutputForObject(stderrMessagesChannel, stderrListenerChannel)
 }
 
-// Parse func
-func Parse(stack types.Stack, item map[string]interface{}) types.RunItem {
-	tmplItem := item
-	output := new(scriptItem)
-	output.Script = item["script"].(string)
-	output.Vars = tmplItem["vars"]
-	if value, ok := item["output"]; ok {
+func (item *scriptItem) parse() {
+	tmplItem := item.rawItem
+	item.Script = item.rawItem["script"].(string)
+	item.Vars = tmplItem["vars"]
+	if value, ok := item.rawItem["output"]; ok {
 		switch value.(type) {
 		case []interface{}:
-			output.Output = value.([]interface{})
+			item.Output = value.([]interface{})
 		default:
-			misc.CheckIfErr(fmt.Errorf("Bad output stack: %s", stack.GetWorkdir()))
+			misc.CheckIfErr(fmt.Errorf("Bad output stack: %s", item.stack.GetWorkdir()))
 		}
 	} else {
-		output.Output = []interface{}{""}
+		item.Output = []interface{}{""}
 	}
-	whenCondition := item["when"]
-	waitCondition := item["wait"]
+	whenCondition := item.rawItem["when"]
+	waitCondition := item.rawItem["wait"]
 	if whenCondition != nil {
-		output.When = whenCondition.(string)
+		item.When = whenCondition.(string)
 	}
 	if waitCondition != nil {
-		output.Wait = waitCondition.(string)
+		item.Wait = waitCondition.(string)
 	}
 	var err error
-	runTimeout := item["runTimeout"]
-	output.RunTimeout = *app.App.Config.DefaultTimeout
+	runTimeout := item.rawItem["runTimeout"]
+	item.RunTimeout = *app.App.Config.DefaultTimeout
 	if runTimeout != nil {
-		output.RunTimeout, err = time.ParseDuration(runTimeout.(string))
+		item.RunTimeout, err = time.ParseDuration(runTimeout.(string))
 		misc.CheckIfErr(err)
 	}
-	waitTimeout := item["waitTimeout"]
-	output.WaitTimeout = *app.App.Config.DefaultTimeout
+	waitTimeout := item.rawItem["waitTimeout"]
+	item.WaitTimeout = *app.App.Config.DefaultTimeout
 	if waitTimeout != nil {
-		output.WaitTimeout, err = time.ParseDuration(waitTimeout.(string))
+		item.WaitTimeout, err = time.ParseDuration(waitTimeout.(string))
 		misc.CheckIfErr(err)
 	}
-
-	return output
 }

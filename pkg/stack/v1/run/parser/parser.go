@@ -38,17 +38,17 @@ func (parser *runItemParser) ParseRunItem(stack types.Stack, item interface{}) (
 	case map[string]interface{}:
 		switch {
 		case item.(map[string]interface{})["gomplate"] != nil:
-			output = gomplate.Parse(stack, item.(map[string]interface{}))
+			output = gomplate.New(stack, item.(map[string]interface{}))
 		case item.(map[string]interface{})["jsonnet"] != nil:
-			output = jsonnet.Parse(stack, item.(map[string]interface{}))
+			output = jsonnet.New(stack, item.(map[string]interface{}))
 		case item.(map[string]interface{})["pongo2"] != nil:
-			output = pongo2.Parse(stack, item.(map[string]interface{}))
+			output = pongo2.New(stack, item.(map[string]interface{}))
 		case item.(map[string]interface{})["script"] != nil:
-			output = script.Parse(stack, item.(map[string]interface{}))
+			output = script.New(stack, item.(map[string]interface{}))
 		case item.(map[string]interface{})["gitclone"] != nil:
-			output = gitclone.Parse(stack, item.(map[string]interface{}))
+			output = gitclone.New(stack, item.(map[string]interface{}))
 		case item.(map[string]interface{})["group"] != nil:
-			output = group.Parse(stack, item.(map[string]interface{}))
+			output = group.New(stack, item.(map[string]interface{}))
 		}
 	}
 	return
