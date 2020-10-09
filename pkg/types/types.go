@@ -28,6 +28,7 @@ type Stack interface {
 	GetStackID() string
 	GetView() interface{}
 	GetWorkdir() string
+	SetStatus(string)
 	LoadFromFile(string, Stack)
 	LoadFromString(string, Stack)
 }

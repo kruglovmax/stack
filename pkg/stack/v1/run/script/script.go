@@ -127,8 +127,10 @@ func (item *scriptItem) Exec(parentWG *sync.WaitGroup, stack types.Stack) {
 			Str("stack", stack.GetWorkdir()).
 			Str("script", item.Script).
 			Msg("Error in")
+		app.App.AppError = 1
+		stack.SetStatus("ScriptError")
 	}
-	misc.CheckIfErr(err)
+	// misc.CheckIfErr(err)
 }
 
 func (item *scriptItem) getScriptOutput(stack types.Stack, output *bufio.Scanner, wg *sync.WaitGroup, isErr bool) {
