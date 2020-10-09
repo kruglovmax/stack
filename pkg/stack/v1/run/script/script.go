@@ -56,7 +56,9 @@ func (item *scriptItem) Exec(parentWG *sync.WaitGroup, stack types.Stack) {
 		err := ioutil.WriteFile(varsFile.Name(), []byte(misc.ToJSON(item.Vars.(map[string]interface{}))), 0600)
 		misc.CheckIfErr(err)
 	case string:
-		vars, err := dotnotation.Get(stack.GetView(), item.Vars.(string))
+		stackMap := stack.GetView().(map[string]interface{})
+		stackMap["stack"] = stackMap
+		vars, err := dotnotation.Get(stackMap, item.Vars.(string))
 		misc.CheckIfErr(err)
 		err = ioutil.WriteFile(varsFile.Name(), []byte(misc.ToJSON(vars)), 0600)
 		misc.CheckIfErr(err)
@@ -165,8 +167,9 @@ func (item *scriptItem) getScriptOutput(stack types.Stack, output *bufio.Scanner
 		err := yaml.Unmarshal([]byte(outBuffer.String()), &value)
 		misc.CheckIfErr(err)
 		switch {
-		case strings.HasPrefix(yml2var, "vars"):
-			key := strings.TrimPrefix(strings.TrimPrefix(yml2var, "vars"), ".")
+		case strings.HasPrefix(yml2var, "vars") || strings.HasPrefix(yml2var, "stack.vars"):
+			key := strings.TrimPrefix(yml2var, "stack.")
+			key = strings.TrimPrefix(strings.TrimPrefix(yml2var, "vars"), ".")
 			setVar := gabs.New()
 			if key == "" {
 				setVar.Set(value)
@@ -174,8 +177,9 @@ func (item *scriptItem) getScriptOutput(stack types.Stack, output *bufio.Scanner
 				setVar.SetP(value, key)
 			}
 			stack.AddRawVarsRight(setVar.Data().(map[string]interface{}))
-		case strings.HasPrefix(yml2var, "flags"):
-			key := strings.TrimPrefix(strings.TrimPrefix(yml2var, "flags"), ".")
+		case strings.HasPrefix(yml2var, "flags") || strings.HasPrefix(yml2var, "stack.flags"):
+			key := strings.TrimPrefix(yml2var, "stack.")
+			key = strings.TrimPrefix(strings.TrimPrefix(yml2var, "flags"), ".")
 			setVar := gabs.New()
 			if key == "" {
 				setVar.Set(value)
@@ -186,8 +190,9 @@ func (item *scriptItem) getScriptOutput(stack types.Stack, output *bufio.Scanner
 			err := mergo.Merge(&stack.GetFlags().Vars, setVar.Data().(map[string]interface{}), mergo.WithOverwriteWithEmptyValue)
 			misc.CheckIfErr(err)
 			stack.GetFlags().Mux.Unlock()
-		case strings.HasPrefix(yml2var, "locals"):
-			key := strings.TrimPrefix(strings.TrimPrefix(yml2var, "locals"), ".")
+		case strings.HasPrefix(yml2var, "locals") || strings.HasPrefix(yml2var, "stack.locals"):
+			key := strings.TrimPrefix(yml2var, "stack.")
+			key = strings.TrimPrefix(strings.TrimPrefix(yml2var, "locals"), ".")
 			setVar := gabs.New()
 			if key == "" {
 				setVar.Set(value)
@@ -208,21 +213,24 @@ func (item *scriptItem) getScriptOutput(stack types.Stack, output *bufio.Scanner
 	if str2var != "" {
 		value := outBuffer.String()
 		switch {
-		case strings.HasPrefix(str2var, "vars."):
-			key := strings.TrimPrefix(str2var, "vars.")
+		case strings.HasPrefix(str2var, "vars.") || strings.HasPrefix(str2var, "stack.vars."):
+			key := strings.TrimPrefix(yml2var, "stack.")
+			key = strings.TrimPrefix(str2var, "vars.")
 			setVar := gabs.New()
 			setVar.SetP(value, key)
 			stack.AddRawVarsRight(setVar.Data().(map[string]interface{}))
-		case strings.HasPrefix(str2var, "flags."):
-			key := strings.TrimPrefix(str2var, "flags.")
+		case strings.HasPrefix(str2var, "flags.") || strings.HasPrefix(str2var, "stack.flags."):
+			key := strings.TrimPrefix(yml2var, "stack.")
+			key = strings.TrimPrefix(str2var, "flags.")
 			setVar := gabs.New()
 			setVar.SetP(value, key)
 			stack.GetFlags().Mux.Lock()
 			err := mergo.Merge(&stack.GetFlags().Vars, setVar.Data().(map[string]interface{}), mergo.WithOverwriteWithEmptyValue)
 			misc.CheckIfErr(err)
 			stack.GetFlags().Mux.Unlock()
-		case strings.HasPrefix(str2var, "locals."):
-			key := strings.TrimPrefix(str2var, "locals.")
+		case strings.HasPrefix(str2var, "locals.") || strings.HasPrefix(str2var, "stack.locals."):
+			key := strings.TrimPrefix(yml2var, "stack.")
+			key = strings.TrimPrefix(str2var, "locals.")
 			setVar := gabs.New()
 			setVar.SetP(value, key)
 			stack.GetLocals().Mux.Lock()

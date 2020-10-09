@@ -63,7 +63,10 @@ func Wait(stack types.Stack, condition string, timeout time.Duration) (result bo
 // WaitGroupAdd func
 func WaitGroupAdd(stack types.Stack, waitgroup string) *sync.WaitGroup {
 	wgKey := waitgroup
-	computed, err := cel.ComputeCEL(waitgroup, stack.GetView().(map[string]interface{}))
+
+	stackMap := stack.GetView().(map[string]interface{})
+	stackMap["stack"] = stackMap
+	computed, err := cel.ComputeCEL(waitgroup, stackMap)
 	if _, ok := computed.(string); err == nil && ok {
 		wgKey = computed.(string)
 	}
@@ -108,7 +111,9 @@ func checkCondition(stack types.Stack, condition string, varsMap map[string]inte
 			decls.Bool)))
 	celAddon.ProgramOption = append(celAddon.ProgramOption, celgo.Functions(waitGroupFunc))
 
-	computed, err := cel.ComputeCEL(condition, varsMap, celAddon)
+	stackMap := stack.GetView().(map[string]interface{})
+	stackMap["stack"] = stackMap
+	computed, err := cel.ComputeCEL(condition, stackMap, celAddon)
 
 	if err != nil {
 		log.Logger.Debug().

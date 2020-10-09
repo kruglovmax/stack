@@ -37,11 +37,13 @@ func (item *groupItem) Exec(parentWG *sync.WaitGroup, stack types.Stack) {
 	wg.Add(1)
 	go item.execGroup(&wg, stack)
 
-	if misc.WaitTimeout(&wg, item.RunTimeout) {
-		log.Logger.Fatal().
-			Str("stack", stack.GetWorkdir()).
-			Str("timeout", fmt.Sprint(item.RunTimeout)).
-			Msg("Group waiting failed")
+	if item.RunTimeout != 0 {
+		if misc.WaitTimeout(&wg, item.RunTimeout) {
+			log.Logger.Fatal().
+				Str("stack", stack.GetWorkdir()).
+				Str("timeout", fmt.Sprint(item.RunTimeout)).
+				Msg("Group waiting failed")
+		}
 	}
 }
 
@@ -83,7 +85,7 @@ func Parse(stack types.Stack, item map[string]interface{}) types.RunItem {
 	}
 	var err error
 	runTimeout := item["runTimeout"]
-	output.RunTimeout = *app.App.Config.DefaultTimeout
+	output.RunTimeout = 0
 	if runTimeout != nil {
 		output.RunTimeout, err = time.ParseDuration(runTimeout.(string))
 		misc.CheckIfErr(err)

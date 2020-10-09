@@ -21,7 +21,7 @@ func ComputeCEL(expression string, varsMap map[string]interface{}, addons ...CEL
 	var out ref.Val
 
 	for key := range varsMap {
-		declarations = append(declarations, decls.NewVar(key, decls.Any))
+		declarations = append(declarations, decls.NewVar(key, decls.Dyn))
 	}
 	if len(addons) > 0 {
 		for _, addon := range addons {
