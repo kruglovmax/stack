@@ -34,10 +34,23 @@ type scriptItem struct {
 	Wait        string        `json:"wait,omitempty"`
 	RunTimeout  time.Duration `json:"runTimeout,omitempty"`
 	WaitTimeout time.Duration `json:"waitTimeout,omitempty"`
+
+	rawItem map[string]interface{}
+	stack   types.Stack
+}
+
+// New func
+func New(stack types.Stack, rawItem map[string]interface{}) types.RunItem {
+	item := new(scriptItem)
+	item.rawItem = rawItem
+	item.stack = stack
+
+	return item
 }
 
 // Exec func
 func (item *scriptItem) Exec(parentWG *sync.WaitGroup, stack types.Stack) {
+	item.parse()
 	if parentWG != nil {
 		defer parentWG.Done()
 	}
@@ -249,43 +262,39 @@ func (item *scriptItem) getScriptOutput(stack types.Stack, output *bufio.Scanner
 	app.App.StdErr.FinishOutputForObject(stderrMessagesChannel, stderrListenerChannel)
 }
 
-// Parse func
-func Parse(stack types.Stack, item map[string]interface{}) types.RunItem {
-	tmplItem := item
-	output := new(scriptItem)
-	output.Script = item["script"].(string)
-	output.Vars = tmplItem["vars"]
-	if value, ok := item["output"]; ok {
+func (item *scriptItem) parse() {
+	tmplItem := item.rawItem
+	item.Script = item.rawItem["script"].(string)
+	item.Vars = tmplItem["vars"]
+	if value, ok := item.rawItem["output"]; ok {
 		switch value.(type) {
 		case []interface{}:
-			output.Output = value.([]interface{})
+			item.Output = value.([]interface{})
 		default:
-			misc.CheckIfErr(fmt.Errorf("Bad output stack: %s", stack.GetWorkdir()))
+			misc.CheckIfErr(fmt.Errorf("Bad output stack: %s", item.stack.GetWorkdir()))
 		}
 	} else {
-		output.Output = []interface{}{""}
+		item.Output = []interface{}{""}
 	}
-	whenCondition := item["when"]
-	waitCondition := item["wait"]
+	whenCondition := item.rawItem["when"]
+	waitCondition := item.rawItem["wait"]
 	if whenCondition != nil {
-		output.When = whenCondition.(string)
+		item.When = whenCondition.(string)
 	}
 	if waitCondition != nil {
-		output.Wait = waitCondition.(string)
+		item.Wait = waitCondition.(string)
 	}
 	var err error
-	runTimeout := item["runTimeout"]
-	output.RunTimeout = *app.App.Config.DefaultTimeout
+	runTimeout := item.rawItem["runTimeout"]
+	item.RunTimeout = *app.App.Config.DefaultTimeout
 	if runTimeout != nil {
-		output.RunTimeout, err = time.ParseDuration(runTimeout.(string))
+		item.RunTimeout, err = time.ParseDuration(runTimeout.(string))
 		misc.CheckIfErr(err)
 	}
-	waitTimeout := item["waitTimeout"]
-	output.WaitTimeout = *app.App.Config.DefaultTimeout
+	waitTimeout := item.rawItem["waitTimeout"]
+	item.WaitTimeout = *app.App.Config.DefaultTimeout
 	if waitTimeout != nil {
-		output.WaitTimeout, err = time.ParseDuration(waitTimeout.(string))
+		item.WaitTimeout, err = time.ParseDuration(waitTimeout.(string))
 		misc.CheckIfErr(err)
 	}
-
-	return output
 }

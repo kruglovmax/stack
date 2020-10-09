@@ -10,6 +10,7 @@ import (
 	"github.com/imdario/mergo"
 	"github.com/joeycumines/go-dotnotation/dotnotation"
 	"github.com/kruglovmax/stack/pkg/app"
+	"github.com/kruglovmax/stack/pkg/cel"
 	"github.com/kruglovmax/stack/pkg/conditions"
 	"github.com/kruglovmax/stack/pkg/consts"
 	"github.com/kruglovmax/stack/pkg/log"
@@ -450,6 +451,9 @@ func parseInputYAML(stack *Stack, input stackInputYAML, parentStack types.Stack)
 	stack.Locals = new(types.StackLocals)
 	stack.Locals.Vars = input.Locals
 
+	stack.Status = app.App.StacksStatus
+	stack.stackID = app.NewStackID()
+
 	stack.Libs = libs.ParseAndInitLibs(input.Libs, stack.Workdir)
 	stack.PreRun = stack.GetRunItemsParser().ParseRun(stack, input.PreRun)
 	stack.Run = stack.GetRunItemsParser().ParseRun(stack, input.Run)
@@ -463,8 +467,6 @@ func parseInputYAML(stack *Stack, input stackInputYAML, parentStack types.Stack)
 		stack.WaitTimeout, err = time.ParseDuration(waitTimeout)
 		misc.CheckIfErr(err)
 	}
-	stack.Status = app.App.StacksStatus
-	stack.stackID = app.NewStackID()
 	stack.waitGroups = input.WaitGroups
 }
 
@@ -517,12 +519,20 @@ func parseStackItems(stack types.Stack, item interface{}, namePrefix string) (ou
 			for k, v := range ss {
 				itemKey = k
 				itemValue = v.(string)
+				stackMap := stack.GetView().(map[string]interface{})
+				stackMap["stack"] = stackMap
+				computed, err := cel.ComputeCEL(itemValue, stackMap)
+				if _, ok := computed.(string); err == nil && ok {
+					itemValue = computed.(string)
+				}
 				newStacks := parseStackItems(stack, itemKey, namePrefix)
 				for _, newStack := range newStacks {
 					stackMap := stack.GetView().(map[string]interface{})
 					stackMap["stack"] = stackMap
 					vars, err := dotnotation.Get(stackMap, itemValue)
-					misc.CheckIfErr(err)
+					if err != nil {
+						vars = itemValue
+					}
 					newStack.GetInput().Mux.Lock()
 					newStack.GetInput().Input = vars
 					newStack.GetInput().Mux.Unlock()

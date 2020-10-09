@@ -293,9 +293,11 @@ func ReadFileFromPath(path string) (output string) {
 
 	fullpath, err := filepath.Abs(path)
 	if PathIsExists(fullpath) && (err == nil) {
-		filepath.Walk(fullpath, loadTemplateFromWalkPath)
+		err := filepath.Walk(fullpath, loadTemplateFromWalkPath)
+		CheckIfErr(err)
 		return output
 	}
+	err = fmt.Errorf("Path is not exists: %s", fullpath)
 	CheckIfErr(err)
 	return ""
 }

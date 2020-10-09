@@ -18,6 +18,7 @@ import (
 	"github.com/imdario/mergo"
 	"github.com/joeycumines/go-dotnotation/dotnotation"
 	"github.com/kruglovmax/stack/pkg/app"
+	"github.com/kruglovmax/stack/pkg/cel"
 	"github.com/kruglovmax/stack/pkg/conditions"
 	"github.com/kruglovmax/stack/pkg/log"
 	"github.com/kruglovmax/stack/pkg/misc"
@@ -34,10 +35,23 @@ type gomplateItem struct {
 	Wait        string        `json:"wait,omitempty"`
 	RunTimeout  time.Duration `json:"runTimeout,omitempty"`
 	WaitTimeout time.Duration `json:"waitTimeout,omitempty"`
+
+	rawItem map[string]interface{}
+	stack   types.Stack
+}
+
+// New func
+func New(stack types.Stack, rawItem map[string]interface{}) types.RunItem {
+	item := new(gomplateItem)
+	item.rawItem = rawItem
+	item.stack = stack
+
+	return item
 }
 
 // Exec func
 func (item *gomplateItem) Exec(parentWG *sync.WaitGroup, stack types.Stack) {
+	item.parse()
 	if parentWG != nil {
 		defer parentWG.Done()
 	}
@@ -47,6 +61,7 @@ func (item *gomplateItem) Exec(parentWG *sync.WaitGroup, stack types.Stack) {
 	if !conditions.Wait(stack, item.Wait, item.WaitTimeout) {
 		return
 	}
+
 	app.App.Mutex.CurrentWorkDirMutex.Lock()
 	os.Chdir(stack.GetWorkdir())
 	var parsedString string
@@ -200,21 +215,26 @@ func (item *gomplateItem) Exec(parentWG *sync.WaitGroup, stack types.Stack) {
 	}
 }
 
-// Parse func
-func Parse(stack types.Stack, item map[string]interface{}) types.RunItem {
+func (item *gomplateItem) parse() {
 	app.App.Mutex.CurrentWorkDirMutex.Lock()
 	defer app.App.Mutex.CurrentWorkDirMutex.Unlock()
-	os.Chdir(stack.GetWorkdir())
+	os.Chdir(item.stack.GetWorkdir())
 	templateLoader := func() string {
-		switch item["gomplate"].(type) {
+		switch item.rawItem["gomplate"].(type) {
 		case string:
-			return item["gomplate"].(string)
+			return item.rawItem["gomplate"].(string)
 		case []interface{}:
 			var resultTemplate string
-			for _, path := range item["gomplate"].([]interface{}) {
+			for _, path := range item.rawItem["gomplate"].([]interface{}) {
 				path := path.(string)
+				stackMap := item.stack.GetView().(map[string]interface{})
+				stackMap["stack"] = stackMap
+				computed, err := cel.ComputeCEL(path, stackMap)
+				if _, ok := computed.(string); err == nil && ok {
+					path = computed.(string)
+				}
 				if !filepath.IsAbs(path) {
-					path = filepath.Join(stack.GetWorkdir(), path)
+					path = filepath.Join(item.stack.GetWorkdir(), path)
 				}
 				resultTemplate = resultTemplate + misc.ReadFileFromPath(path)
 			}
@@ -225,33 +245,30 @@ func Parse(stack types.Stack, item map[string]interface{}) types.RunItem {
 		return ""
 	}()
 
-	output := new(gomplateItem)
-	output.Template = templateLoader
-	output.Vars = item["vars"]
-	output.Output = item["output"].([]interface{})
-	whenCondition := item["when"]
-	waitCondition := item["wait"]
+	item.Template = templateLoader
+	item.Vars = item.rawItem["vars"]
+	item.Output = item.rawItem["output"].([]interface{})
+	whenCondition := item.rawItem["when"]
+	waitCondition := item.rawItem["wait"]
 	if whenCondition != nil {
-		output.When = whenCondition.(string)
+		item.When = whenCondition.(string)
 	}
 	if waitCondition != nil {
-		output.Wait = waitCondition.(string)
+		item.Wait = waitCondition.(string)
 	}
 	var err error
-	runTimeout := item["runTimeout"]
-	output.RunTimeout = *app.App.Config.DefaultTimeout
+	runTimeout := item.rawItem["runTimeout"]
+	item.RunTimeout = *app.App.Config.DefaultTimeout
 	if runTimeout != nil {
-		output.RunTimeout, err = time.ParseDuration(runTimeout.(string))
+		item.RunTimeout, err = time.ParseDuration(runTimeout.(string))
 		misc.CheckIfErr(err)
 	}
-	waitTimeout := item["waitTimeout"]
-	output.WaitTimeout = *app.App.Config.DefaultTimeout
+	waitTimeout := item.rawItem["waitTimeout"]
+	item.WaitTimeout = *app.App.Config.DefaultTimeout
 	if waitTimeout != nil {
-		output.WaitTimeout, err = time.ParseDuration(waitTimeout.(string))
+		item.WaitTimeout, err = time.ParseDuration(waitTimeout.(string))
 		misc.CheckIfErr(err)
 	}
-
-	return output
 }
 
 func processString(parentWG *sync.WaitGroup, rootObject interface{}, str string) string {

@@ -20,10 +20,23 @@ type groupItem struct {
 	Wait        string          `json:"wait,omitempty"`
 	RunTimeout  time.Duration   `json:"runTimeout,omitempty"`
 	WaitTimeout time.Duration   `json:"waitTimeout,omitempty"`
+
+	rawItem map[string]interface{}
+	stack   types.Stack
+}
+
+// New func
+func New(stack types.Stack, rawItem map[string]interface{}) types.RunItem {
+	item := new(groupItem)
+	item.rawItem = rawItem
+	item.stack = stack
+
+	return item
 }
 
 // Exec func
 func (item *groupItem) Exec(parentWG *sync.WaitGroup, stack types.Stack) {
+	item.parse()
 	if parentWG != nil {
 		defer parentWG.Done()
 	}
@@ -33,6 +46,7 @@ func (item *groupItem) Exec(parentWG *sync.WaitGroup, stack types.Stack) {
 	if !conditions.Wait(stack, item.Wait, item.WaitTimeout) {
 		return
 	}
+
 	var wg sync.WaitGroup
 	wg.Add(1)
 	go item.execGroup(&wg, stack)
@@ -66,36 +80,32 @@ func (item *groupItem) execGroup(parentWG *sync.WaitGroup, stack types.Stack) {
 	}
 }
 
-// Parse func
-func Parse(stack types.Stack, item map[string]interface{}) types.RunItem {
-	output := new(groupItem)
-	output.Group = stack.GetRunItemsParser().ParseRun(stack, item["group"].([]interface{}))
-	parallel := item["parallel"]
+func (item *groupItem) parse() {
+	item.Group = item.stack.GetRunItemsParser().ParseRun(item.stack, item.rawItem["group"].([]interface{}))
+	parallel := item.rawItem["parallel"]
 	if parallel == nil {
 		parallel = false
 	}
-	output.Parallel = parallel.(bool)
-	whenCondition := (item)["when"]
-	waitCondition := (item)["wait"]
+	item.Parallel = parallel.(bool)
+	whenCondition := (item.rawItem)["when"]
+	waitCondition := (item.rawItem)["wait"]
 	if whenCondition != nil {
-		output.When = whenCondition.(string)
+		item.When = whenCondition.(string)
 	}
 	if waitCondition != nil {
-		output.Wait = waitCondition.(string)
+		item.Wait = waitCondition.(string)
 	}
 	var err error
-	runTimeout := item["runTimeout"]
-	output.RunTimeout = 0
+	runTimeout := item.rawItem["runTimeout"]
+	item.RunTimeout = 0
 	if runTimeout != nil {
-		output.RunTimeout, err = time.ParseDuration(runTimeout.(string))
+		item.RunTimeout, err = time.ParseDuration(runTimeout.(string))
 		misc.CheckIfErr(err)
 	}
-	waitTimeout := item["waitTimeout"]
-	output.WaitTimeout = *app.App.Config.DefaultTimeout
+	waitTimeout := item.rawItem["waitTimeout"]
+	item.WaitTimeout = *app.App.Config.DefaultTimeout
 	if waitTimeout != nil {
-		output.WaitTimeout, err = time.ParseDuration(waitTimeout.(string))
+		item.WaitTimeout, err = time.ParseDuration(waitTimeout.(string))
 		misc.CheckIfErr(err)
 	}
-
-	return output
 }
