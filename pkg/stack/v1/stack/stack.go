@@ -237,9 +237,7 @@ func (stack *Stack) LoadFromString(stackYAML string, parentStack types.Stack) {
 			Str("YAML", "\n"+stackYAML).
 			Msg(consts.MessageBadStackUnsupportedAPI)
 	}
-	stack.Status.Mux.Lock()
-	stack.Status.StacksStatus[stack.stackID] = "Loaded"
-	stack.Status.Mux.Unlock()
+	stack.SetStatus("Loaded")
 	return
 }
 
@@ -276,9 +274,7 @@ func (stack *Stack) LoadFromFile(stackFile string, parentStack types.Stack) {
 			Str("file", stackFile).
 			Msg(consts.MessageBadStackUnsupportedAPI)
 	}
-	stack.Status.Mux.Lock()
-	stack.Status.StacksStatus[stack.stackID] = "Loaded"
-	stack.Status.Mux.Unlock()
+	stack.SetStatus("Loaded")
 	return
 }
 
@@ -290,9 +286,7 @@ func (stack *Stack) PreExec(parentWG *sync.WaitGroup) {
 	if len(stack.PreRun) > 0 {
 		log.Logger.Info().Str("Stack", stack.GetWorkdir()).Msg("preRun")
 	}
-	stack.Status.Mux.Lock()
-	stack.Status.StacksStatus[stack.stackID] = "PreRun"
-	stack.Status.Mux.Unlock()
+	stack.SetStatus("PreRun")
 	for _, runItem := range stack.PreRun {
 		var wg sync.WaitGroup
 		wg.Add(1)
@@ -309,9 +303,7 @@ func (stack *Stack) Exec(parentWG *sync.WaitGroup) {
 	if len(stack.Run) > 0 {
 		log.Logger.Info().Str("Stack", stack.GetWorkdir()).Msg("Run")
 	}
-	stack.Status.Mux.Lock()
-	stack.Status.StacksStatus[stack.stackID] = "Run"
-	stack.Status.Mux.Unlock()
+	stack.SetStatus("Run")
 	for _, runItem := range stack.Run {
 		var wg sync.WaitGroup
 		wg.Add(1)
@@ -328,15 +320,20 @@ func (stack *Stack) PostExec(parentWG *sync.WaitGroup) {
 	if len(stack.PostRun) > 0 {
 		log.Logger.Info().Str("Stack", stack.GetWorkdir()).Msg("postRun")
 	}
-	stack.Status.Mux.Lock()
-	stack.Status.StacksStatus[stack.stackID] = "PostRun"
-	stack.Status.Mux.Unlock()
+	stack.SetStatus("PostRun")
 	for _, runItem := range stack.PostRun {
 		var wg sync.WaitGroup
 		wg.Add(1)
 		go runItem.Exec(&wg, stack)
 		wg.Wait()
 	}
+}
+
+// SetStatus func
+func (stack *Stack) SetStatus(status string) {
+	stack.Status.Mux.Lock()
+	stack.Status.StacksStatus[stack.stackID] = status
+	stack.Status.Mux.Unlock()
 }
 
 // Start func
@@ -347,9 +344,19 @@ func (stack *Stack) Start(parentWG *sync.WaitGroup) {
 
 	defer stack.done()
 
+	if app.App.AppError != 0 {
+		stack.SetStatus("Cancelled because app error")
+		return
+	}
+
 	stack.preExecWG.Add(1)
 	go stack.PreExec(&stack.preExecWG)
 	stack.preExecWG.Wait()
+
+	if app.App.AppError != 0 {
+		stack.SetStatus("Cancelled because app error")
+		return
+	}
 
 	if !conditions.When(stack, stack.When) {
 		return
@@ -366,15 +373,16 @@ func (stack *Stack) Start(parentWG *sync.WaitGroup) {
 	go stack.Exec(&stack.execWG)
 	stack.execWG.Wait()
 
+	if app.App.AppError != 0 {
+		stack.SetStatus("Cancelled because app error")
+		return
+	}
+
 	// Start sub stacks
-	stack.Status.Mux.Lock()
-	stack.Status.StacksStatus[stack.stackID] = "ParseChildStacks"
-	stack.Status.Mux.Unlock()
+	stack.SetStatus("ParseChildStacks")
 	stack.ParallelStacks = ParseStacks(stack, stack.config.ParallelStacks)
 	stack.Stacks = ParseStacks(stack, stack.config.Stacks)
-	stack.Status.Mux.Lock()
-	stack.Status.StacksStatus[stack.stackID] = "RunChildStacks"
-	stack.Status.Mux.Unlock()
+	stack.SetStatus("RunChildStacks")
 	for _, stackItem := range stack.Stacks {
 		stack.stacksWG.Add(1)
 		stackItem.Start(&stack.stacksWG)
@@ -389,9 +397,12 @@ func (stack *Stack) Start(parentWG *sync.WaitGroup) {
 	go stack.PostExec(&stack.postExecWG)
 	stack.postExecWG.Wait()
 
-	stack.Status.Mux.Lock()
-	stack.Status.StacksStatus[stack.stackID] = "Done"
-	stack.Status.Mux.Unlock()
+	if app.App.AppError != 0 {
+		stack.SetStatus("Cancelled because app error")
+		return
+	}
+
+	stack.SetStatus("Done")
 }
 
 func (stack *Stack) done() {

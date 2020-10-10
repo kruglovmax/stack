@@ -3,9 +3,12 @@ package app
 import (
 	"fmt"
 	"os"
+	"os/signal"
 	"sync"
+	"syscall"
 	"time"
 
+	"github.com/kruglovmax/stack/pkg/log"
 	"github.com/kruglovmax/stack/pkg/out"
 	"github.com/kruglovmax/stack/pkg/types"
 )
@@ -23,6 +26,7 @@ type app struct {
 	StdOut        *out.Output
 	StdErr        *out.Output
 	WaitGroups    map[string]*sync.WaitGroup
+	AppError      int
 }
 
 type appConfig struct {
@@ -51,6 +55,8 @@ func init() {
 	App.StacksStatus.StacksStatus = make(map[string]string)
 	App.StacksCounter = 0
 	App.WaitGroups = make(map[string]*sync.WaitGroup)
+
+	setupCloseHandler()
 }
 
 // NewStackID func
@@ -59,4 +65,14 @@ func NewStackID() string {
 	App.StacksCounter++
 	App.Mutex.StacksCounterMutex.Unlock()
 	return fmt.Sprintf("stack_%v", App.StacksCounter)
+}
+
+func setupCloseHandler() {
+	c := make(chan os.Signal)
+	signal.Notify(c, os.Interrupt, syscall.SIGTERM)
+	go func() {
+		<-c
+		log.Logger.Error().Msg("Ctrl+C pressed in Terminal. Graceful finish.")
+		App.AppError = 2
+	}()
 }

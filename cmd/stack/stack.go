@@ -22,7 +22,7 @@ import (
 )
 
 const (
-	version = "v0.6.9"
+	version = "v0.6.10"
 	product = "stack"
 )
 
@@ -99,5 +99,12 @@ Example:
 
 	stack.RunRootStack(*app.App.Config.Workdir)
 
-	os.Exit(0)
+	switch app.App.AppError {
+	case 0:
+		log.Logger.Info().Int("Code", app.App.AppError).Msg("FINISH")
+	default:
+		log.Logger.Error().Int("Code", app.App.AppError).Msg("FAIL")
+	}
+
+	os.Exit(app.App.AppError)
 }
