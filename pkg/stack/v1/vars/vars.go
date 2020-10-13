@@ -265,8 +265,11 @@ func CombineVars(leftVars, rightVars *types.StackVars) (combinedVars *types.Stac
 					newLeftVars.Modifiers = leftVars.Modifiers[leftKey].(map[string]interface{})
 					newLeftVars.Vars = leftValue.(map[string]interface{})
 					newRightVars := new(types.StackVars)
-					newRightVars.Modifiers = rightVars.Modifiers[leftKey].(map[string]interface{})
-					newRightVars.Vars = rightValue.(map[string]interface{})
+					switch rightVars.Modifiers[leftKey].(type) {
+					case map[string]interface{}:
+						newRightVars.Modifiers = rightVars.Modifiers[leftKey].(map[string]interface{})
+						newRightVars.Vars = rightValue.(map[string]interface{})
+					}
 					comboVars := CombineVars(newLeftVars, newRightVars)
 					combinedVars.Vars[leftKey] = comboVars.Vars
 					combinedVars.Modifiers[leftKey] = comboVars.Modifiers

@@ -116,7 +116,7 @@ func checkCondition(stack types.Stack, condition string, varsMap map[string]inte
 	computed, err := cel.ComputeCEL(condition, stackMap, celAddon)
 
 	if err != nil {
-		log.Logger.Debug().
+		log.Logger.Warn().
 			Str("condition", condition).
 			Str("in stack", stack.GetWorkdir()).
 			Msgf("Error %s\n", err.Error())
