@@ -440,11 +440,13 @@ func parseInputYAML(stack *Stack, input stackInputYAML, parentStack types.Stack)
 			misc.LoadYAMLFromFile(filepath.Join(stack.Workdir, varsFile), &varsMap)
 			varsArray = append(varsArray, varsMap)
 		}
+		cliVars := make(map[string]interface{})
 		for _, str := range *app.App.Config.CLIValues {
 			varsMap, err := strvals.Parse(str)
 			misc.CheckIfErr(err)
-			varsArray = append(varsArray, varsMap)
+			mergo.Merge(&cliVars, varsMap, mergo.WithOverwriteWithEmptyValue)
 		}
+		varsArray = append(varsArray, cliVars)
 	}
 
 	for _, v := range varsArray {

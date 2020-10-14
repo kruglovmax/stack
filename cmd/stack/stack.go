@@ -101,7 +101,7 @@ Example:
 
 	switch app.App.AppError {
 	case 0:
-		log.Logger.Info().Int("Code", app.App.AppError).Msg("FINISH")
+		log.Logger.Info().Int("Code", app.App.AppError).Msg("DONE")
 	default:
 		log.Logger.Error().Int("Code", app.App.AppError).Msg("FAIL")
 	}
