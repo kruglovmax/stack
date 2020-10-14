@@ -248,7 +248,10 @@ func (item *gomplateItem) parse() {
 
 	item.Template = templateLoader
 	item.Vars = item.rawItem["vars"]
-	item.Output = item.rawItem["output"].([]interface{})
+	_, ok := item.rawItem["output"]
+	if ok {
+		item.Output, ok = item.rawItem["output"].([]interface{})
+	}
 	whenCondition := item.rawItem["when"]
 	waitCondition := item.rawItem["wait"]
 	if whenCondition != nil {

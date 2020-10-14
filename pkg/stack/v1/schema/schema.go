@@ -105,7 +105,7 @@ definitions:
       - type: object
         additionalProperties: false
         minProperties: 1
-        required: ["gomplate", "output"]
+        required: ["gomplate"]
         properties:
           gomplate:
             oneOf:

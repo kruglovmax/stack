@@ -414,12 +414,7 @@ func (stack *Stack) done() {
 func parseInputYAML(stack *Stack, input stackInputYAML, parentStack types.Stack) {
 	stack.API = input.API
 
-	switch parentStack {
-	case nil:
-		stack.Vars = vars.ParseVars(input.Vars)
-	default:
-		stack.Vars = vars.CombineVars(parentStack.GetVars(), vars.ParseVars(input.Vars))
-	}
+	stack.Vars = vars.ParseVars(input.Vars)
 
 	varsArray := make([]map[string]interface{}, 0, len(input.VarsFrom)+len(*app.App.Config.VarFiles))
 	for _, v := range input.VarsFrom {
@@ -451,6 +446,10 @@ func parseInputYAML(stack *Stack, input stackInputYAML, parentStack types.Stack)
 
 	for _, v := range varsArray {
 		stack.AddRawVarsLeft(v)
+	}
+
+	if parentStack != nil {
+		stack.Vars = vars.CombineVars(parentStack.GetVars(), stack.Vars)
 	}
 
 	stack.Flags = vars.FlagsGlobal

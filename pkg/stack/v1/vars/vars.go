@@ -188,9 +188,12 @@ func CombineVars(leftVars, rightVars *types.StackVars) (combinedVars *types.Stac
 	}
 
 	for key := range mergedKeys {
+		var rightKeyModifiers StackVarsModifiers
 		rightValue, ok := rightVars.Vars[key]
-		rightKeyModifiers, ok := rightVars.Modifiers[key+thisVarModifiersSuffix].(StackVarsModifiers)
-		if !ok {
+		if ok {
+			rightKeyModifiers = rightVars.Modifiers[key+thisVarModifiersSuffix].(StackVarsModifiers)
+		} else {
+			rightValue = nil
 			rightKeyModifiers = StackVarsModifiers{Weak: true}
 		}
 		leftValue, ok := leftVars.Vars[key]
@@ -244,14 +247,16 @@ func CombineVars(leftVars, rightVars *types.StackVars) (combinedVars *types.Stac
 						combinedVars.Modifiers[key] = rightVars.Modifiers[key]
 						combinedVars.Modifiers[key+thisVarModifiersSuffix] = rightKeyModifiers
 					}
-				case nil:
-					combinedVars.Vars[key] = leftValue
-					combinedVars.Modifiers[key] = leftVars.Modifiers[key]
-					combinedVars.Modifiers[key+thisVarModifiersSuffix] = leftKeyModifiers
 				default:
-					combinedVars.Vars[key] = rightValue
-					combinedVars.Modifiers[key] = rightVars.Modifiers[key]
-					combinedVars.Modifiers[key+thisVarModifiersSuffix] = rightKeyModifiers
+					if rightValue != nil {
+						combinedVars.Vars[key] = rightValue
+						combinedVars.Modifiers[key] = rightVars.Modifiers[key]
+						combinedVars.Modifiers[key+thisVarModifiersSuffix] = rightKeyModifiers
+					} else {
+						combinedVars.Vars[key] = leftValue
+						combinedVars.Modifiers[key] = leftVars.Modifiers[key]
+						combinedVars.Modifiers[key+thisVarModifiersSuffix] = leftKeyModifiers
+					}
 				}
 			}
 		case leftKeyModifiers.Update:
