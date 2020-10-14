@@ -11,8 +11,8 @@ require (
 	github.com/containerd/continuity v0.0.0-20200107194136-26c1120b8d41 // indirect
 	github.com/davecgh/go-spew v1.1.1
 	github.com/flytam/filenamify v1.0.0
-	github.com/go-git/go-git/v5 v5.1.0
-	github.com/google/cel-go v0.5.1
+	github.com/go-git/go-git/v5 v5.2.0
+	github.com/google/cel-go v0.6.0
 	github.com/google/go-jsonnet v0.16.0
 	github.com/hairyhenderson/gomplate/v3 v3.8.0
 	github.com/imdario/mergo v0.3.11
@@ -20,12 +20,12 @@ require (
 	github.com/lib/pq v1.7.0 // indirect
 	github.com/mattn/go-colorable v0.1.7 // indirect
 	github.com/opencontainers/go-digest v1.0.0 // indirect
-	github.com/rs/zerolog v1.19.0
+	github.com/rs/zerolog v1.20.0
 	github.com/sirupsen/logrus v1.6.0 // indirect
 	github.com/spf13/pflag v1.0.5
 	github.com/xeipuuv/gojsonschema v1.2.0
-	go.mozilla.org/sops/v3 v3.6.0
+	go.mozilla.org/sops/v3 v3.6.1
 	google.golang.org/genproto v0.0.0-20200618031413-b414f8b61790
-	k8s.io/helm v2.16.10+incompatible
+	k8s.io/helm v2.16.12+incompatible
 	sigs.k8s.io/yaml v1.2.0
 )

@@ -64,6 +64,7 @@ func (item *gomplateItem) Exec(parentWG *sync.WaitGroup, stack types.Stack) {
 
 	app.App.Mutex.CurrentWorkDirMutex.Lock()
 	os.Chdir(stack.GetWorkdir())
+	os.Setenv("AWS_TIMEOUT", fmt.Sprint(int64(item.RunTimeout/time.Millisecond)))
 	var parsedString string
 	switch item.Vars.(type) {
 	case map[string]interface{}:

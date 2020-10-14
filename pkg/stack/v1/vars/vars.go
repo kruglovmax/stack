@@ -4,6 +4,7 @@ import (
 	"runtime/debug"
 
 	"github.com/davecgh/go-spew/spew"
+
 	"github.com/kruglovmax/stack/pkg/consts"
 	"github.com/kruglovmax/stack/pkg/log"
 	"github.com/kruglovmax/stack/pkg/types"
@@ -20,9 +21,6 @@ var (
 	// FlagsGlobal var
 	FlagsGlobal *types.StackFlags
 
-	// VarsModifiersSuffix var
-	VarsModifiersSuffix = "_modifiers"
-
 	// VarsSuffixDelimeter var
 	VarsSuffixDelimeter = "^"
 
@@ -32,6 +30,8 @@ var (
 		"Clear":  "-",
 		"Weak":   "~",
 	}
+
+	thisVarModifiersSuffix = "_modifiers"
 )
 
 func init() {
@@ -69,7 +69,7 @@ func parseVars(varsFromConfig map[string]interface{}, parentVarModifiers *StackV
 					Msg(consts.MessageVarsDoubleDefinition)
 			}
 			modifiers[varName] = stackSubVars.Modifiers
-			modifiers[varName+VarsModifiersSuffix] = varModifiers
+			modifiers[varName+thisVarModifiersSuffix] = varModifiers
 			vars[varName] = stackSubVars.Vars
 		default:
 			_, ok := modifiers[varName]
@@ -82,7 +82,7 @@ func parseVars(varsFromConfig map[string]interface{}, parentVarModifiers *StackV
 					Str("var", varName).
 					Msg(consts.MessageVarsDoubleDefinition)
 			}
-			modifiers[varName+VarsModifiersSuffix] = varModifiers
+			modifiers[varName+thisVarModifiersSuffix] = varModifiers
 			vars[varName] = varValue
 		}
 	}
@@ -176,117 +176,125 @@ Loop:
 // CombineVars func
 func CombineVars(leftVars, rightVars *types.StackVars) (combinedVars *types.StackVars) {
 	combinedVars = new(types.StackVars)
-	combinedVars.Vars = rightVars.Vars
-	combinedVars.Modifiers = rightVars.Modifiers
-	if combinedVars.Vars == nil {
-		combinedVars.Vars = make(map[string]interface{})
+	combinedVars.Vars = make(map[string]interface{})
+	combinedVars.Modifiers = make(map[string]interface{})
+
+	mergedKeys := make(map[string]bool)
+	for k := range leftVars.Vars {
+		mergedKeys[k] = true
 	}
-	if combinedVars.Modifiers == nil {
-		combinedVars.Modifiers = make(map[string]interface{})
+	for k := range rightVars.Vars {
+		mergedKeys[k] = true
 	}
 
-	for leftKey, leftValue := range leftVars.Vars {
-		rightValue := rightVars.Vars[leftKey]
-		leftVarsModifiers := leftVars.Modifiers[leftKey+VarsModifiersSuffix].(StackVarsModifiers)
-		rightVarsModifiers, ok := rightVars.Modifiers[leftKey+VarsModifiersSuffix].(StackVarsModifiers)
+	for key := range mergedKeys {
+		rightValue, ok := rightVars.Vars[key]
+		rightKeyModifiers, ok := rightVars.Modifiers[key+thisVarModifiersSuffix].(StackVarsModifiers)
 		if !ok {
-			rightVarsModifiers = StackVarsModifiers{Weak: true}
+			rightKeyModifiers = StackVarsModifiers{Weak: true}
 		}
+		leftValue, ok := leftVars.Vars[key]
+		if !ok {
+			combinedVars.Vars[key] = rightValue
+			combinedVars.Modifiers[key] = rightVars.Modifiers[key]
+			combinedVars.Modifiers[key+thisVarModifiersSuffix] = rightKeyModifiers
+			continue
+		}
+		leftKeyModifiers, ok := leftVars.Modifiers[key+thisVarModifiersSuffix].(StackVarsModifiers)
 		switch {
-		case leftVarsModifiers.Weak:
-			if rightVarsModifiers.Clear {
-				combinedVars.Vars[leftKey] = rightValue
-				combinedVars.Modifiers[leftKey] = nil
-				combinedVars.Modifiers[leftKey+VarsModifiersSuffix] = rightVarsModifiers
+		case leftKeyModifiers.Weak:
+			if rightKeyModifiers.Clear {
+				combinedVars.Vars[key] = rightValue
+				combinedVars.Modifiers[key] = rightVars.Modifiers[key]
+				combinedVars.Modifiers[key+thisVarModifiersSuffix] = rightKeyModifiers
 			} else {
 				switch rightValue.(type) {
 				case []interface{}:
 					switch leftValue.(type) {
 					case []interface{}:
-						combinedVars.Vars[leftKey] = append(leftValue.([]interface{}), rightValue.([]interface{})...)
-						combinedVars.Modifiers[leftKey+VarsModifiersSuffix] = rightVarsModifiers
-						combinedVars.Modifiers[leftKey] = rightVars.Modifiers[leftKey]
+						combinedVars.Vars[key] = append(leftValue.([]interface{}), rightValue.([]interface{})...)
+						combinedVars.Modifiers[key+thisVarModifiersSuffix] = rightKeyModifiers
+						combinedVars.Modifiers[key] = rightVars.Modifiers[key]
 					default:
-						combinedVars.Vars[leftKey] = rightValue
-						combinedVars.Modifiers[leftKey+VarsModifiersSuffix] = rightVarsModifiers
-						combinedVars.Modifiers[leftKey] = rightVars.Modifiers[leftKey]
+						combinedVars.Vars[key] = rightValue
+						combinedVars.Modifiers[key+thisVarModifiersSuffix] = rightKeyModifiers
+						combinedVars.Modifiers[key] = rightVars.Modifiers[key]
 					}
 				case map[string]interface{}:
 					switch leftValue.(type) {
 					case map[string]interface{}:
 						newLeftVars := new(types.StackVars)
-						switch leftVars.Modifiers[leftKey].(type) {
+						switch leftVars.Modifiers[key].(type) {
 						case map[string]interface{}:
-							newLeftVars.Modifiers = leftVars.Modifiers[leftKey].(map[string]interface{})
+							newLeftVars.Modifiers = leftVars.Modifiers[key].(map[string]interface{})
 						}
 						newLeftVars.Vars = leftValue.(map[string]interface{})
 						newRightVars := new(types.StackVars)
-						switch rightVars.Modifiers[leftKey].(type) {
+						switch rightVars.Modifiers[key].(type) {
 						case map[string]interface{}:
-							newRightVars.Modifiers = rightVars.Modifiers[leftKey].(map[string]interface{})
+							newRightVars.Modifiers = rightVars.Modifiers[key].(map[string]interface{})
 						}
 						newRightVars.Vars = rightValue.(map[string]interface{})
 						comboVars := CombineVars(newLeftVars, newRightVars)
-						combinedVars.Vars[leftKey] = comboVars.Vars
-						combinedVars.Modifiers[leftKey] = comboVars.Modifiers
-						combinedVars.Modifiers[leftKey+VarsModifiersSuffix] = rightVarsModifiers
+						combinedVars.Vars[key] = comboVars.Vars
+						combinedVars.Modifiers[key] = comboVars.Modifiers
+						combinedVars.Modifiers[key+thisVarModifiersSuffix] = rightKeyModifiers
 					default:
-						combinedVars.Vars[leftKey] = rightValue
-						combinedVars.Modifiers[leftKey] = rightVars.Modifiers[leftKey]
-						combinedVars.Modifiers[leftKey+VarsModifiersSuffix] = rightVarsModifiers
+						combinedVars.Vars[key] = rightValue
+						combinedVars.Modifiers[key] = rightVars.Modifiers[key]
+						combinedVars.Modifiers[key+thisVarModifiersSuffix] = rightKeyModifiers
 					}
 				case nil:
-					combinedVars.Vars[leftKey] = leftValue
-					combinedVars.Modifiers[leftKey] = nil
-					combinedVars.Modifiers[leftKey+VarsModifiersSuffix] = rightVarsModifiers
+					combinedVars.Vars[key] = leftValue
+					combinedVars.Modifiers[key] = leftVars.Modifiers[key]
+					combinedVars.Modifiers[key+thisVarModifiersSuffix] = leftKeyModifiers
 				default:
-					combinedVars.Vars[leftKey] = rightValue
-					combinedVars.Modifiers[leftKey] = nil
-					combinedVars.Modifiers[leftKey+VarsModifiersSuffix] = rightVarsModifiers
+					combinedVars.Vars[key] = rightValue
+					combinedVars.Modifiers[key] = rightVars.Modifiers[key]
+					combinedVars.Modifiers[key+thisVarModifiersSuffix] = rightKeyModifiers
 				}
 			}
-		case leftVarsModifiers.Update:
+		case leftKeyModifiers.Update:
 			switch leftValue.(type) {
 			case []interface{}:
 				switch rightValue.(type) {
 				case []interface{}:
-					combinedVars.Vars[leftKey] = append(rightValue.([]interface{}), leftValue.([]interface{})...)
-					combinedVars.Modifiers[leftKey+VarsModifiersSuffix] = leftVarsModifiers
-					combinedVars.Modifiers[leftKey] = leftVars.Modifiers[leftKey]
+					combinedVars.Vars[key] = append(rightValue.([]interface{}), leftValue.([]interface{})...)
+					combinedVars.Modifiers[key+thisVarModifiersSuffix] = leftKeyModifiers
+					combinedVars.Modifiers[key] = leftVars.Modifiers[key]
 				default:
-					combinedVars.Vars[leftKey] = leftValue
-					combinedVars.Modifiers[leftKey+VarsModifiersSuffix] = leftVarsModifiers
-					combinedVars.Modifiers[leftKey] = leftVars.Modifiers[leftKey]
+					combinedVars.Vars[key] = leftValue
+					combinedVars.Modifiers[key+thisVarModifiersSuffix] = leftKeyModifiers
+					combinedVars.Modifiers[key] = leftVars.Modifiers[key]
 				}
 			case map[string]interface{}:
 				switch rightValue.(type) {
 				case map[string]interface{}:
 					newLeftVars := new(types.StackVars)
-					newLeftVars.Modifiers = leftVars.Modifiers[leftKey].(map[string]interface{})
+					newLeftVars.Modifiers = leftVars.Modifiers[key].(map[string]interface{})
 					newLeftVars.Vars = leftValue.(map[string]interface{})
 					newRightVars := new(types.StackVars)
-					newRightVars.Modifiers = rightVars.Modifiers[leftKey].(map[string]interface{})
-					newRightVars.Vars = rightValue.(map[string]interface{})
+					newRightVars.Modifiers, ok = rightVars.Modifiers[key].(map[string]interface{})
+					newRightVars.Vars, ok = rightValue.(map[string]interface{})
 					comboVars := CombineVars(newLeftVars, newRightVars)
-					combinedVars.Vars[leftKey] = comboVars.Vars
-					combinedVars.Modifiers[leftKey] = comboVars.Modifiers
-					combinedVars.Modifiers[leftKey+VarsModifiersSuffix] = leftVarsModifiers
+					combinedVars.Vars[key] = comboVars.Vars
+					combinedVars.Modifiers[key] = comboVars.Modifiers
+					combinedVars.Modifiers[key+thisVarModifiersSuffix] = leftKeyModifiers
 				default:
-					combinedVars.Vars[leftKey] = leftValue
-					combinedVars.Modifiers[leftKey] = leftVars.Modifiers[leftKey]
-					combinedVars.Modifiers[leftKey+VarsModifiersSuffix] = leftVarsModifiers
+					combinedVars.Vars[key] = leftValue
+					combinedVars.Modifiers[key] = leftVars.Modifiers[key]
+					combinedVars.Modifiers[key+thisVarModifiersSuffix] = leftKeyModifiers
 				}
 			default:
-				combinedVars.Vars[leftKey] = leftValue
-				combinedVars.Modifiers[leftKey] = nil
-				combinedVars.Modifiers[leftKey+VarsModifiersSuffix] = leftVarsModifiers
+				combinedVars.Vars[key] = leftValue
+				combinedVars.Modifiers[key] = leftVars.Modifiers[key]
+				combinedVars.Modifiers[key+thisVarModifiersSuffix] = leftKeyModifiers
 			}
 		default:
-			combinedVars.Vars[leftKey] = leftValue
-			combinedVars.Modifiers[leftKey] = nil
-			combinedVars.Modifiers[leftKey+VarsModifiersSuffix] = leftVarsModifiers
+			combinedVars.Vars[key] = leftValue
+			combinedVars.Modifiers[key] = leftVars.Modifiers[key]
+			combinedVars.Modifiers[key+thisVarModifiersSuffix] = leftKeyModifiers
 		}
-		spew.Sprint(rightValue, rightVarsModifiers)
 	}
 	return
 }
