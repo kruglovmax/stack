@@ -72,7 +72,7 @@ func setupCloseHandler() {
 	signal.Notify(c, os.Interrupt, syscall.SIGTERM)
 	go func() {
 		<-c
-		log.Logger.Error().Msg("Ctrl+C pressed in Terminal. Graceful finish.")
+		log.Logger.Error().Msg("Ctrl+C pressed in Terminal. Gracefully shutting down...")
 		App.AppError = 2
 	}()
 }
