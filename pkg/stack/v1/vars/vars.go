@@ -246,11 +246,11 @@ func CombineVars(leftVars, rightVars *types.StackVars) (combinedVars *types.Stac
 					}
 				case nil:
 					combinedVars.Vars[key] = leftValue
-					combinedVars.Modifiers[key] = nil
-					combinedVars.Modifiers[key+thisVarModifiersSuffix] = rightKeyModifiers
+					combinedVars.Modifiers[key] = leftVars.Modifiers[key]
+					combinedVars.Modifiers[key+thisVarModifiersSuffix] = leftKeyModifiers
 				default:
 					combinedVars.Vars[key] = rightValue
-					combinedVars.Modifiers[key] = nil
+					combinedVars.Modifiers[key] = rightVars.Modifiers[key]
 					combinedVars.Modifiers[key+thisVarModifiersSuffix] = rightKeyModifiers
 				}
 			}
@@ -287,12 +287,12 @@ func CombineVars(leftVars, rightVars *types.StackVars) (combinedVars *types.Stac
 				}
 			default:
 				combinedVars.Vars[key] = leftValue
-				combinedVars.Modifiers[key] = nil
+				combinedVars.Modifiers[key] = leftVars.Modifiers[key]
 				combinedVars.Modifiers[key+thisVarModifiersSuffix] = leftKeyModifiers
 			}
 		default:
 			combinedVars.Vars[key] = leftValue
-			combinedVars.Modifiers[key] = nil
+			combinedVars.Modifiers[key] = leftVars.Modifiers[key]
 			combinedVars.Modifiers[key+thisVarModifiersSuffix] = leftKeyModifiers
 		}
 	}
