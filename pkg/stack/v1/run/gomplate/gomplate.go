@@ -50,54 +50,54 @@ func New(stack types.Stack, rawItem map[string]interface{}) types.RunItem {
 }
 
 // Exec func
-func (item *gomplateItem) Exec(parentWG *sync.WaitGroup, stack types.Stack) {
+func (item *gomplateItem) Exec(parentWG *sync.WaitGroup) {
 	item.parse()
 	if parentWG != nil {
 		defer parentWG.Done()
 	}
-	if !conditions.When(stack, item.When) {
+	if !conditions.When(item.stack, item.When) {
 		return
 	}
-	if !conditions.Wait(stack, item.Wait, item.WaitTimeout) {
+	if !conditions.Wait(item.stack, item.Wait, item.WaitTimeout) {
 		return
 	}
 
 	app.App.Mutex.CurrentWorkDirMutex.Lock()
-	os.Chdir(stack.GetWorkdir())
+	os.Chdir(item.stack.GetWorkdir())
 	os.Setenv("AWS_TIMEOUT", fmt.Sprint(int64(item.RunTimeout/time.Millisecond)))
 	var parsedString string
 	switch item.Vars.(type) {
 	case map[string]interface{}:
 		var wg sync.WaitGroup
 		wg.Add(1)
-		parsedString = processString(&wg, item.Vars.(map[string]interface{}), item.Template)
+		parsedString = processString(item.stack, &wg, item.Vars.(map[string]interface{}), item.Template)
 		if misc.WaitTimeout(&wg, item.RunTimeout) {
 			log.Logger.Fatal().
-				Str("stack", stack.GetWorkdir()).
+				Str("stack", item.stack.GetWorkdir()).
 				Str("timeout", fmt.Sprint(item.RunTimeout)).
 				Msg("Gomplate waiting failed")
 		}
 	case string:
-		stackMap := stack.GetView().(map[string]interface{})
+		stackMap := item.stack.GetView().(map[string]interface{})
 		stackMap["stack"] = stackMap
 		vars, err := dotnotation.Get(stackMap, item.Vars.(string))
 		misc.CheckIfErr(err)
 		var wg sync.WaitGroup
 		wg.Add(1)
-		parsedString = processString(&wg, vars, item.Template)
+		parsedString = processString(item.stack, &wg, vars, item.Template)
 		if misc.WaitTimeout(&wg, item.RunTimeout) {
 			log.Logger.Fatal().
-				Str("stack", stack.GetWorkdir()).
+				Str("stack", item.stack.GetWorkdir()).
 				Str("timeout", fmt.Sprint(item.RunTimeout)).
 				Msg("Gomplate waiting failed")
 		}
 	case nil:
 		var wg sync.WaitGroup
 		wg.Add(1)
-		parsedString = processString(&wg, stack.GetView(), item.Template)
+		parsedString = processString(item.stack, &wg, item.stack.GetView(), item.Template)
 		if misc.WaitTimeout(&wg, item.RunTimeout) {
 			log.Logger.Fatal().
-				Str("stack", stack.GetWorkdir()).
+				Str("stack", item.stack.GetWorkdir()).
 				Str("timeout", fmt.Sprint(item.RunTimeout)).
 				Msg("Gomplate waiting failed")
 		}
@@ -144,7 +144,7 @@ func (item *gomplateItem) Exec(parentWG *sync.WaitGroup, stack types.Stack) {
 					} else {
 						setVar.SetP(value, key)
 					}
-					stack.AddRawVarsRight(setVar.Data().(map[string]interface{}))
+					item.stack.AddRawVarsRight(setVar.Data().(map[string]interface{}))
 				case strings.HasPrefix(yml2var, "flags") || strings.HasPrefix(yml2var, "stack.flags"):
 					key := strings.TrimPrefix(yml2var, "stack.")
 					key = strings.TrimPrefix(strings.TrimPrefix(yml2var, "flags"), ".")
@@ -154,10 +154,10 @@ func (item *gomplateItem) Exec(parentWG *sync.WaitGroup, stack types.Stack) {
 					} else {
 						setVar.SetP(value, key)
 					}
-					stack.GetFlags().Mux.Lock()
-					err := mergo.Merge(&stack.GetFlags().Vars, setVar.Data().(map[string]interface{}), mergo.WithOverwriteWithEmptyValue)
+					item.stack.GetFlags().Mux.Lock()
+					err := mergo.Merge(&item.stack.GetFlags().Vars, setVar.Data().(map[string]interface{}), mergo.WithOverwriteWithEmptyValue)
 					misc.CheckIfErr(err)
-					stack.GetFlags().Mux.Unlock()
+					item.stack.GetFlags().Mux.Unlock()
 				case strings.HasPrefix(yml2var, "locals") || strings.HasPrefix(yml2var, "stack.locals"):
 					key := strings.TrimPrefix(yml2var, "stack.")
 					key = strings.TrimPrefix(strings.TrimPrefix(yml2var, "locals"), ".")
@@ -167,14 +167,14 @@ func (item *gomplateItem) Exec(parentWG *sync.WaitGroup, stack types.Stack) {
 					} else {
 						setVar.SetP(value, key)
 					}
-					stack.GetLocals().Mux.Lock()
-					err := mergo.Merge(&stack.GetLocals().Vars, setVar.Data().(map[string]interface{}), mergo.WithOverwriteWithEmptyValue)
+					item.stack.GetLocals().Mux.Lock()
+					err := mergo.Merge(&item.stack.GetLocals().Vars, setVar.Data().(map[string]interface{}), mergo.WithOverwriteWithEmptyValue)
 					misc.CheckIfErr(err)
-					stack.GetLocals().Mux.Unlock()
+					item.stack.GetLocals().Mux.Unlock()
 				default:
 					log.Logger.Fatal().
 						Str("yml2var", yml2var).
-						Str("in stack", stack.GetWorkdir()).
+						Str("in stack", item.stack.GetWorkdir()).
 						Msg("Bad output var")
 				}
 			}
@@ -186,29 +186,29 @@ func (item *gomplateItem) Exec(parentWG *sync.WaitGroup, stack types.Stack) {
 					key = strings.TrimPrefix(str2var, "vars.")
 					setVar := gabs.New()
 					setVar.SetP(parsedString, key)
-					stack.AddRawVarsRight(setVar.Data().(map[string]interface{}))
+					item.stack.AddRawVarsRight(setVar.Data().(map[string]interface{}))
 				case strings.HasPrefix(str2var, "flags.") || strings.HasPrefix(str2var, "stack.flags."):
 					key := strings.TrimPrefix(str2var, "stack.")
 					key = strings.TrimPrefix(str2var, "flags.")
 					setVar := gabs.New()
 					setVar.SetP(parsedString, key)
-					stack.GetFlags().Mux.Lock()
-					err := mergo.Merge(&stack.GetFlags().Vars, setVar.Data().(map[string]interface{}), mergo.WithOverwriteWithEmptyValue)
+					item.stack.GetFlags().Mux.Lock()
+					err := mergo.Merge(&item.stack.GetFlags().Vars, setVar.Data().(map[string]interface{}), mergo.WithOverwriteWithEmptyValue)
 					misc.CheckIfErr(err)
-					stack.GetFlags().Mux.Unlock()
+					item.stack.GetFlags().Mux.Unlock()
 				case strings.HasPrefix(str2var, "locals.") || strings.HasPrefix(str2var, "stack.locals."):
 					key := strings.TrimPrefix(str2var, "stack.")
 					key = strings.TrimPrefix(str2var, "locals.")
 					setVar := gabs.New()
 					setVar.SetP(parsedString, key)
-					stack.GetLocals().Mux.Lock()
-					err := mergo.Merge(&stack.GetLocals().Vars, setVar.Data().(map[string]interface{}), mergo.WithOverwriteWithEmptyValue)
+					item.stack.GetLocals().Mux.Lock()
+					err := mergo.Merge(&item.stack.GetLocals().Vars, setVar.Data().(map[string]interface{}), mergo.WithOverwriteWithEmptyValue)
 					misc.CheckIfErr(err)
-					stack.GetLocals().Mux.Unlock()
+					item.stack.GetLocals().Mux.Unlock()
 				default:
 					log.Logger.Fatal().
 						Str("str2var", str2var).
-						Str("in stack", stack.GetWorkdir()).
+						Str("in stack", item.stack.GetWorkdir()).
 						Msg("Bad output var")
 				}
 			}
@@ -275,7 +275,7 @@ func (item *gomplateItem) parse() {
 	}
 }
 
-func processString(parentWG *sync.WaitGroup, rootObject interface{}, str string) string {
+func processString(stack types.Stack, parentWG *sync.WaitGroup, rootObject interface{}, str string) string {
 	if parentWG != nil {
 		defer parentWG.Done()
 	}
@@ -294,6 +294,6 @@ func processString(parentWG *sync.WaitGroup, rootObject interface{}, str string)
 	log.Logger.Trace().
 		Str("rootMap", spew.Sprint(rootObject)).
 		Msg("")
-	misc.CheckIfErr(err)
+	misc.CheckIfErr(err, stack)
 	return gtplOut
 }

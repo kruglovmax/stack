@@ -31,5 +31,5 @@ func New(stack types.Stack, rawItem map[string]interface{}) types.RunItem {
 }
 
 // Exec func
-func (item *pongo2Item) Exec(parentWG *sync.WaitGroup, stack types.Stack) {
+func (item *pongo2Item) Exec(parentWG *sync.WaitGroup) {
 }

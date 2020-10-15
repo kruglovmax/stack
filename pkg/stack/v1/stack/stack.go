@@ -126,6 +126,11 @@ func (stack *Stack) GetName() string {
 	return stack.Name
 }
 
+// GetParent func
+func (stack *Stack) GetParent() types.Stack {
+	return stack.parentStack
+}
+
 // GetRunItemsParser func
 func (stack *Stack) GetRunItemsParser() types.RunItemParser {
 	return stack.runItemParser
@@ -290,7 +295,7 @@ func (stack *Stack) PreExec(parentWG *sync.WaitGroup) {
 	for _, runItem := range stack.PreRun {
 		var wg sync.WaitGroup
 		wg.Add(1)
-		go runItem.Exec(&wg, stack)
+		go runItem.Exec(&wg)
 		wg.Wait()
 	}
 }
@@ -307,7 +312,7 @@ func (stack *Stack) Exec(parentWG *sync.WaitGroup) {
 	for _, runItem := range stack.Run {
 		var wg sync.WaitGroup
 		wg.Add(1)
-		go runItem.Exec(&wg, stack)
+		go runItem.Exec(&wg)
 		wg.Wait()
 	}
 }
@@ -324,7 +329,7 @@ func (stack *Stack) PostExec(parentWG *sync.WaitGroup) {
 	for _, runItem := range stack.PostRun {
 		var wg sync.WaitGroup
 		wg.Add(1)
-		go runItem.Exec(&wg, stack)
+		go runItem.Exec(&wg)
 		wg.Wait()
 	}
 }

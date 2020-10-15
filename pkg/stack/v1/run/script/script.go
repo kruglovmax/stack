@@ -49,15 +49,15 @@ func New(stack types.Stack, rawItem map[string]interface{}) types.RunItem {
 }
 
 // Exec func
-func (item *scriptItem) Exec(parentWG *sync.WaitGroup, stack types.Stack) {
+func (item *scriptItem) Exec(parentWG *sync.WaitGroup) {
 	item.parse()
 	if parentWG != nil {
 		defer parentWG.Done()
 	}
-	if !conditions.When(stack, item.When) {
+	if !conditions.When(item.stack, item.When) {
 		return
 	}
-	if !conditions.Wait(stack, item.Wait, item.WaitTimeout) {
+	if !conditions.Wait(item.stack, item.Wait, item.WaitTimeout) {
 		return
 	}
 
@@ -69,14 +69,14 @@ func (item *scriptItem) Exec(parentWG *sync.WaitGroup, stack types.Stack) {
 		err := ioutil.WriteFile(varsFile.Name(), []byte(misc.ToJSON(item.Vars.(map[string]interface{}))), 0600)
 		misc.CheckIfErr(err)
 	case string:
-		stackMap := stack.GetView().(map[string]interface{})
+		stackMap := item.stack.GetView().(map[string]interface{})
 		stackMap["stack"] = stackMap
 		vars, err := dotnotation.Get(stackMap, item.Vars.(string))
 		misc.CheckIfErr(err)
 		err = ioutil.WriteFile(varsFile.Name(), []byte(misc.ToJSON(vars)), 0600)
 		misc.CheckIfErr(err)
 	case nil:
-		err := ioutil.WriteFile(varsFile.Name(), []byte(misc.ToJSON(stack.GetView())), 0600)
+		err := ioutil.WriteFile(varsFile.Name(), []byte(misc.ToJSON(item.stack.GetView())), 0600)
 		misc.CheckIfErr(err)
 	default:
 		log.Logger.Trace().
@@ -87,7 +87,7 @@ func (item *scriptItem) Exec(parentWG *sync.WaitGroup, stack types.Stack) {
 			Msg("Unable to parse run item. Bad vars key")
 	}
 	cmd := exec.Command("sh", "-c", item.Script)
-	cmd.Dir = stack.GetWorkdir()
+	cmd.Dir = item.stack.GetWorkdir()
 	cmd.Env = append(os.Environ(),
 		fmt.Sprintf("STACK_VARS=%s", varsFile.Name()),
 		fmt.Sprintf("STACK_ROOT=%s", *app.App.Config.Workdir),
@@ -103,8 +103,8 @@ func (item *scriptItem) Exec(parentWG *sync.WaitGroup, stack types.Stack) {
 
 	var wg sync.WaitGroup
 	wg.Add(2)
-	go item.getScriptOutput(stack, stdoutBufio, &wg, false)
-	go item.getScriptOutput(stack, stderrBufio, &wg, true)
+	go item.getScriptOutput(item.stack, stdoutBufio, &wg, false)
+	go item.getScriptOutput(item.stack, stderrBufio, &wg, true)
 
 	err = cmd.Start()
 	misc.CheckIfErr(err)
@@ -115,7 +115,7 @@ func (item *scriptItem) Exec(parentWG *sync.WaitGroup, stack types.Stack) {
 	}
 	if misc.WaitTimeout(&wg, runTimeout) {
 		log.Logger.Fatal().
-			Str("stack", stack.GetWorkdir()).
+			Str("stack", item.stack.GetWorkdir()).
 			Str("script", item.Script).
 			Str("timeout", fmt.Sprint(runTimeout)).
 			Msg("Script waiting failed")
@@ -124,11 +124,13 @@ func (item *scriptItem) Exec(parentWG *sync.WaitGroup, stack types.Stack) {
 	err = cmd.Wait()
 	if err != nil {
 		log.Logger.Error().
-			Str("stack", stack.GetWorkdir()).
+			Str("stack", item.stack.GetWorkdir()).
 			Str("script", item.Script).
 			Msg("Error in")
+
+		misc.PrintStackTrace(item.stack)
 		app.App.AppError = 1
-		stack.SetStatus("ScriptError")
+		item.stack.SetStatus("ScriptError")
 	}
 }
 
