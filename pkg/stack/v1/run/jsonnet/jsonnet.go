@@ -46,15 +46,15 @@ func New(stack types.Stack, rawItem map[string]interface{}) types.RunItem {
 }
 
 // Exec func
-func (item *jsonnetItem) Exec(parentWG *sync.WaitGroup, stack types.Stack) {
+func (item *jsonnetItem) Exec(parentWG *sync.WaitGroup) {
 	item.parse()
 	if parentWG != nil {
 		defer parentWG.Done()
 	}
-	if !conditions.When(stack, item.When) {
+	if !conditions.When(item.stack, item.When) {
 		return
 	}
-	if !conditions.Wait(stack, item.Wait, item.WaitTimeout) {
+	if !conditions.Wait(item.stack, item.Wait, item.WaitTimeout) {
 		return
 	}
 

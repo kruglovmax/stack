@@ -35,46 +35,46 @@ func New(stack types.Stack, rawItem map[string]interface{}) types.RunItem {
 }
 
 // Exec func
-func (item *groupItem) Exec(parentWG *sync.WaitGroup, stack types.Stack) {
+func (item *groupItem) Exec(parentWG *sync.WaitGroup) {
 	item.parse()
 	if parentWG != nil {
 		defer parentWG.Done()
 	}
-	if !conditions.When(stack, item.When) {
+	if !conditions.When(item.stack, item.When) {
 		return
 	}
-	if !conditions.Wait(stack, item.Wait, item.WaitTimeout) {
+	if !conditions.Wait(item.stack, item.Wait, item.WaitTimeout) {
 		return
 	}
 
 	var wg sync.WaitGroup
 	wg.Add(1)
-	go item.execGroup(&wg, stack)
+	go item.execGroup(&wg)
 
 	if item.RunTimeout != 0 {
 		if misc.WaitTimeout(&wg, item.RunTimeout) {
 			log.Logger.Fatal().
-				Str("stack", stack.GetWorkdir()).
+				Str("stack", item.stack.GetWorkdir()).
 				Str("timeout", fmt.Sprint(item.RunTimeout)).
 				Msg("Group waiting failed")
 		}
 	}
 }
 
-func (item *groupItem) execGroup(parentWG *sync.WaitGroup, stack types.Stack) {
+func (item *groupItem) execGroup(parentWG *sync.WaitGroup) {
 	defer parentWG.Done()
 	if item.Parallel {
 		var wg sync.WaitGroup
 		for _, runItem := range item.Group {
 			wg.Add(1)
-			go runItem.Exec(&wg, stack)
+			go runItem.Exec(&wg)
 		}
 		wg.Wait()
 	} else {
 		for _, runItem := range item.Group {
 			var wg sync.WaitGroup
 			wg.Add(1)
-			go runItem.Exec(&wg, stack)
+			go runItem.Exec(&wg)
 			wg.Wait()
 		}
 	}

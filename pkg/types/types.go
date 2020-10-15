@@ -24,6 +24,7 @@ type Stack interface {
 	GetVars() *StackVars
 	GetFlags() *StackFlags
 	GetLocals() *StackLocals
+	GetParent() Stack
 	GetRunItemsParser() RunItemParser
 	GetStackID() string
 	GetView() interface{}
@@ -78,7 +79,7 @@ type ExecExitCode struct {
 
 // RunItem interface
 type RunItem interface {
-	Exec(*sync.WaitGroup, Stack)
+	Exec(*sync.WaitGroup)
 }
 
 // RunItemParser interface

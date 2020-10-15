@@ -40,20 +40,20 @@ func New(stack types.Stack, rawItem map[string]interface{}) types.RunItem {
 }
 
 // Exec func
-func (item *gitcloneItem) Exec(parentWG *sync.WaitGroup, stack types.Stack) {
+func (item *gitcloneItem) Exec(parentWG *sync.WaitGroup) {
 	item.parse()
 	if parentWG != nil {
 		defer parentWG.Done()
 	}
-	if !conditions.When(stack, item.When) {
+	if !conditions.When(item.stack, item.When) {
 		return
 	}
-	if !conditions.Wait(stack, item.Wait, item.WaitTimeout) {
+	if !conditions.Wait(item.stack, item.Wait, item.WaitTimeout) {
 		return
 	}
 
 	gitcloneSubDir, err := filenamify.Filenamify(item.Repo, filenamify.Options{Replacement: "_"})
-	misc.CheckIfErr(err)
+	misc.CheckIfErr(err, item.stack)
 
 	var wg sync.WaitGroup
 	wg.Add(1)
@@ -64,7 +64,7 @@ func (item *gitcloneItem) Exec(parentWG *sync.WaitGroup, stack types.Stack) {
 	go misc.GitClone(&wg, dir, item.Repo, item.Ref, true, true)
 	if misc.WaitTimeout(&wg, item.RunTimeout) {
 		log.Logger.Fatal().
-			Str("stack", stack.GetWorkdir()).
+			Str("stack", item.stack.GetWorkdir()).
 			Str("timeout", fmt.Sprint(item.RunTimeout)).
 			Msg("Git clone waiting failed")
 	}
@@ -90,13 +90,13 @@ func (item *gitcloneItem) parse() {
 	item.RunTimeout = *app.App.Config.DefaultTimeout
 	if runTimeout != nil {
 		item.RunTimeout, err = time.ParseDuration(runTimeout.(string))
-		misc.CheckIfErr(err)
+		misc.CheckIfErr(err, item.stack)
 	}
 	waitTimeout := item.rawItem["waitTimeout"]
 	item.WaitTimeout = *app.App.Config.DefaultTimeout
 	if waitTimeout != nil {
 		item.WaitTimeout, err = time.ParseDuration(waitTimeout.(string))
-		misc.CheckIfErr(err)
+		misc.CheckIfErr(err, item.stack)
 	}
 
 	if _, ok := item.rawItem["dir"]; ok {
@@ -104,6 +104,6 @@ func (item *gitcloneItem) parse() {
 		os.Chdir(item.stack.GetWorkdir())
 		item.Dir, err = filepath.Abs(item.rawItem["dir"].(string))
 		app.App.Mutex.CurrentWorkDirMutex.Unlock()
-		misc.CheckIfErr(err)
+		misc.CheckIfErr(err, item.stack)
 	}
 }

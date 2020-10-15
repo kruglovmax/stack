@@ -152,8 +152,11 @@ func FindPath(dir string, searchPaths ...string) (output string, err error) {
 }
 
 // CheckIfErr func
-func CheckIfErr(err error) {
+func CheckIfErr(err error, stacks ...types.Stack) {
 	if err != nil {
+		for _, stack := range stacks {
+			PrintStackTrace(stack)
+		}
 		log.Logger.Debug().
 			Msg(string(debug.Stack()))
 		log.Logger.Fatal().
@@ -339,6 +342,20 @@ func PathIsFile(path string) bool {
 	}
 }
 
+// PrintStackTrace func
+func PrintStackTrace(stack types.Stack) {
+	log.Logger.Error().
+		Str("stack", stack.GetWorkdir()).
+		Msg("From")
+	parentStack := stack.GetParent()
+	for parentStack != nil {
+		log.Logger.Error().
+			Str("stack", parentStack.GetWorkdir()).
+			Msg("Parent")
+		parentStack = parentStack.GetParent()
+	}
+}
+
 // FindStackFileInDir func
 func FindStackFileInDir(dir string) (stackFile string) {
 	dirBase := filepath.Base(dir)
@@ -381,7 +398,7 @@ func GetDirPath(fullpath string) (dirPath string) {
 func GetStackPathRelativeToTheRootStack(stack types.Stack) (output string) {
 	var err error
 	output, err = filepath.Rel(*app.App.Config.Workdir, stack.GetWorkdir())
-	CheckIfErr(err)
+	CheckIfErr(err, stack)
 	return
 }
 
