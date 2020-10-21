@@ -2,6 +2,7 @@ package vars
 
 import (
 	"runtime/debug"
+	"strings"
 
 	"github.com/davecgh/go-spew/spew"
 
@@ -12,9 +13,10 @@ import (
 
 // StackVarsModifiers type
 type StackVarsModifiers struct {
-	Update bool
-	Clear  bool
-	Weak   bool
+	AllUpdate bool
+	Update    bool
+	Clear     bool
+	Weak      bool
 }
 
 var (
@@ -26,9 +28,10 @@ var (
 
 	// VarsSuffixes var
 	VarsSuffixes = map[string]string{
-		"Update": "+",
-		"Clear":  "-",
-		"Weak":   "~",
+		"Update":    "+",
+		"AllUpdate": "++",
+		"Clear":     "-",
+		"Weak":      "~",
 	}
 
 	thisVarModifiersSuffix = "_modifiers"
@@ -93,20 +96,48 @@ func parseVars(varsFromConfig map[string]interface{}, parentVarModifiers *StackV
 
 // ParseVarModifiers func
 // varRawName - test+
-func ParseVarModifiers(varRawName string, parentVarModifiers *StackVarsModifiers) (varName string, modifiers StackVarsModifiers) {
+func ParseVarModifiers(varRawName string, topVarModifiers *StackVarsModifiers) (varName string, modifiers StackVarsModifiers) {
 	varName = varRawName
-	if parentVarModifiers != nil {
-		modifiers.Weak = parentVarModifiers.Weak
+	if topVarModifiers != nil {
+		if topVarModifiers.Weak {
+			modifiers.Weak = true
+		}
+		if topVarModifiers.AllUpdate {
+			modifiers.AllUpdate = true
+			modifiers.Update = true
+		}
 	}
 Loop:
 	for {
-		sfx := varName[len(varName)-1:]
-		varName = varName[:len(varName)-1]
-		switch sfx {
-		case VarsSuffixes["Update"]:
+		if varLoopName := strings.TrimSuffix(varName, VarsSuffixes["AllUpdate"]); varLoopName != varName {
 			if !(modifiers.Update ||
 				modifiers.Weak) &&
-				(parentVarModifiers == nil || (parentVarModifiers != nil && parentVarModifiers.Update)) {
+				(topVarModifiers == nil || (topVarModifiers != nil && topVarModifiers.Update)) {
+				modifiers.AllUpdate = true
+				modifiers.Update = true
+				varName = varLoopName
+				if modifiers.Clear {
+					log.Logger.Debug().
+						Msg(string(debug.Stack()))
+					log.Logger.Warn().
+						Str("Input var name", varRawName).
+						Str("Output var name", varName).
+						Msgf(consts.MessageVarsSimplyfy, varName)
+				}
+			} else {
+				log.Logger.Debug().
+					Msg(string(debug.Stack()))
+				log.Logger.Warn().
+					Str("Input var name", varRawName).
+					Str("Output var name", varName).
+					Msg(consts.MessageVarsBadVarName)
+				break Loop
+			}
+		} else if varLoopName := strings.TrimSuffix(varName, VarsSuffixes["Update"]); varLoopName != varName {
+			if !(modifiers.Update ||
+				modifiers.Weak) &&
+				(topVarModifiers == nil || (topVarModifiers != nil && topVarModifiers.Update)) {
+				varName = varLoopName
 				if modifiers.Clear {
 					log.Logger.Debug().
 						Msg(string(debug.Stack()))
@@ -117,7 +148,6 @@ Loop:
 				}
 				modifiers.Update = true
 			} else {
-				varName = varName + sfx
 				log.Logger.Debug().
 					Msg(string(debug.Stack()))
 				log.Logger.Warn().
@@ -126,9 +156,10 @@ Loop:
 					Msg(consts.MessageVarsBadVarName)
 				break Loop
 			}
-		case VarsSuffixes["Clear"]:
+		} else if varLoopName := strings.TrimSuffix(varName, VarsSuffixes["Clear"]); varLoopName != varName {
 			if !modifiers.Clear &&
-				parentVarModifiers == nil {
+				topVarModifiers == nil {
+				varName = varLoopName
 				modifiers.Clear = true
 				if modifiers.Update {
 					log.Logger.Debug().
@@ -139,7 +170,6 @@ Loop:
 						Msgf(consts.MessageVarsSimplyfy, varName)
 				}
 			} else {
-				varName = varName + sfx
 				log.Logger.Debug().
 					Msg(string(debug.Stack()))
 				log.Logger.Warn().
@@ -148,13 +178,13 @@ Loop:
 					Msg(consts.MessageVarsBadVarName)
 				break Loop
 			}
-		case VarsSuffixes["Weak"]:
+		} else if varLoopName := strings.TrimSuffix(varName, VarsSuffixes["Weak"]); varLoopName != varName {
 			if !(modifiers.Update ||
 				modifiers.Weak) &&
-				parentVarModifiers == nil {
+				topVarModifiers == nil {
+				varName = varLoopName
 				modifiers.Weak = true
 			} else {
-				varName = varName + sfx
 				log.Logger.Debug().
 					Msg(string(debug.Stack()))
 				log.Logger.Warn().
@@ -163,12 +193,12 @@ Loop:
 					Msg(consts.MessageVarsBadVarName)
 				break Loop
 			}
-		case VarsSuffixDelimeter:
+		} else if varLoopName := strings.TrimSuffix(varName, VarsSuffixDelimeter); varLoopName != varName {
 			break Loop
-		default:
-			varName = varName + sfx
+		} else {
 			break Loop
 		}
+
 	}
 	return
 }
