@@ -76,7 +76,7 @@ func (item *jsonnetItem) Exec(parentWG *sync.WaitGroup) {
 				var err error
 				var content []byte
 				content, err = ioutil.ReadFile(file)
-				misc.CheckIfErr(err)
+				misc.CheckIfErr(err, item.stack)
 				jsonnetSnippet = string(content)
 			case misc.PathIsDir(path):
 				os.Chdir(path)
@@ -91,7 +91,7 @@ func (item *jsonnetItem) Exec(parentWG *sync.WaitGroup) {
 	case map[string]interface{}:
 		var wg sync.WaitGroup
 		wg.Add(1)
-		parsedString = processJsonnet(&wg, item.Vars.(map[string]interface{}), jsonnetSnippet)
+		parsedString = processJsonnet(item.stack, &wg, item.Vars.(map[string]interface{}), jsonnetSnippet)
 		if misc.WaitTimeout(&wg, item.RunTimeout) {
 			log.Logger.Fatal().
 				Str("stack", item.stack.GetWorkdir()).
@@ -102,10 +102,10 @@ func (item *jsonnetItem) Exec(parentWG *sync.WaitGroup) {
 		stackMap := item.stack.GetView().(map[string]interface{})
 		stackMap["stack"] = stackMap
 		vars, err := dotnotation.Get(stackMap, item.Vars.(string))
-		misc.CheckIfErr(err)
+		misc.CheckIfErr(err, item.stack)
 		var wg sync.WaitGroup
 		wg.Add(1)
-		parsedString = processJsonnet(&wg, vars, jsonnetSnippet)
+		parsedString = processJsonnet(item.stack, &wg, vars, jsonnetSnippet)
 		if misc.WaitTimeout(&wg, item.RunTimeout) {
 			log.Logger.Fatal().
 				Str("stack", item.stack.GetWorkdir()).
@@ -115,7 +115,7 @@ func (item *jsonnetItem) Exec(parentWG *sync.WaitGroup) {
 	case nil:
 		var wg sync.WaitGroup
 		wg.Add(1)
-		parsedString = processJsonnet(&wg, item.stack.GetView(), jsonnetSnippet)
+		parsedString = processJsonnet(item.stack, &wg, item.stack.GetView(), jsonnetSnippet)
 		if misc.WaitTimeout(&wg, item.RunTimeout) {
 			log.Logger.Fatal().
 				Str("stack", item.stack.GetWorkdir()).
@@ -124,7 +124,7 @@ func (item *jsonnetItem) Exec(parentWG *sync.WaitGroup) {
 		}
 	default:
 		err := fmt.Errorf("Unable to parse run item. Bad vars key")
-		misc.CheckIfErr(err)
+		misc.CheckIfErr(err, item.stack)
 	}
 
 	app.App.Mutex.CurrentWorkDirMutex.Unlock()
@@ -151,7 +151,7 @@ func (item *jsonnetItem) Exec(parentWG *sync.WaitGroup) {
 				var value map[string]interface{}
 				yml2var := v.(map[string]interface{})["yml2var"].(string)
 				err := yaml.Unmarshal([]byte(parsedString), &value)
-				misc.CheckIfErr(err)
+				misc.CheckIfErr(err, item.stack)
 				switch {
 				case strings.HasPrefix(yml2var, "vars") || strings.HasPrefix(yml2var, "stack.vars"):
 					key := strings.TrimPrefix(yml2var, "stack.")
@@ -174,7 +174,7 @@ func (item *jsonnetItem) Exec(parentWG *sync.WaitGroup) {
 					}
 					item.stack.GetFlags().Mux.Lock()
 					err := mergo.Merge(&item.stack.GetFlags().Vars, setVar.Data().(map[string]interface{}), mergo.WithOverwriteWithEmptyValue)
-					misc.CheckIfErr(err)
+					misc.CheckIfErr(err, item.stack)
 					item.stack.GetFlags().Mux.Unlock()
 				case strings.HasPrefix(yml2var, "locals") || strings.HasPrefix(yml2var, "stack.locals"):
 					key := strings.TrimPrefix(yml2var, "stack.")
@@ -187,7 +187,7 @@ func (item *jsonnetItem) Exec(parentWG *sync.WaitGroup) {
 					}
 					item.stack.GetLocals().Mux.Lock()
 					err := mergo.Merge(&item.stack.GetLocals().Vars, setVar.Data().(map[string]interface{}), mergo.WithOverwriteWithEmptyValue)
-					misc.CheckIfErr(err)
+					misc.CheckIfErr(err, item.stack)
 					item.stack.GetLocals().Mux.Unlock()
 				default:
 					log.Logger.Fatal().
@@ -212,7 +212,7 @@ func (item *jsonnetItem) Exec(parentWG *sync.WaitGroup) {
 					setVar.SetP(parsedString, key)
 					item.stack.GetFlags().Mux.Lock()
 					err := mergo.Merge(&item.stack.GetFlags().Vars, setVar.Data().(map[string]interface{}), mergo.WithOverwriteWithEmptyValue)
-					misc.CheckIfErr(err)
+					misc.CheckIfErr(err, item.stack)
 					item.stack.GetFlags().Mux.Unlock()
 				case strings.HasPrefix(str2var, "locals.") || strings.HasPrefix(str2var, "stack.locals."):
 					key := strings.TrimPrefix(str2var, "stack.")
@@ -221,7 +221,7 @@ func (item *jsonnetItem) Exec(parentWG *sync.WaitGroup) {
 					setVar.SetP(parsedString, key)
 					item.stack.GetLocals().Mux.Lock()
 					err := mergo.Merge(&item.stack.GetLocals().Vars, setVar.Data().(map[string]interface{}), mergo.WithOverwriteWithEmptyValue)
-					misc.CheckIfErr(err)
+					misc.CheckIfErr(err, item.stack)
 					item.stack.GetLocals().Mux.Unlock()
 				default:
 					log.Logger.Fatal().
@@ -251,7 +251,7 @@ func (item *jsonnetItem) parse() {
 			return resultJsonnet, jsonnetFiles
 		}
 		err := fmt.Errorf("Unable to parse run item")
-		misc.CheckIfErr(err)
+		misc.CheckIfErr(err, item.stack)
 		return "", nil
 	}()
 
@@ -273,17 +273,17 @@ func (item *jsonnetItem) parse() {
 	item.RunTimeout = *app.App.Config.DefaultTimeout
 	if runTimeout != nil {
 		item.RunTimeout, err = time.ParseDuration(runTimeout.(string))
-		misc.CheckIfErr(err)
+		misc.CheckIfErr(err, item.stack)
 	}
 	waitTimeout := item.rawItem["waitTimeout"]
 	item.WaitTimeout = *app.App.Config.DefaultTimeout
 	if waitTimeout != nil {
 		item.WaitTimeout, err = time.ParseDuration(waitTimeout.(string))
-		misc.CheckIfErr(err)
+		misc.CheckIfErr(err, item.stack)
 	}
 }
 
-func processJsonnet(parentWG *sync.WaitGroup, rootObject interface{}, str string) string {
+func processJsonnet(stack types.Stack, parentWG *sync.WaitGroup, rootObject interface{}, str string) string {
 	if parentWG != nil {
 		defer parentWG.Done()
 	}
@@ -291,6 +291,6 @@ func processJsonnet(parentWG *sync.WaitGroup, rootObject interface{}, str string
 	vm := jsonnet.MakeVM()
 	vm.TLACode("stack", misc.ToJSON(rootObject))
 	result, err := vm.EvaluateSnippet("jsonnet", str)
-	misc.CheckIfErr(err)
+	misc.CheckIfErr(err, stack)
 	return result
 }

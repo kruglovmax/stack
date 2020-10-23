@@ -217,14 +217,14 @@ func (stack *Stack) LoadFromString(stackYAML string, parentStack types.Stack) {
 	var tmpStructForValidation interface{}
 	misc.LoadYAML(stackYAML, &tmpStructForValidation)
 	validation, err := schema.ConfigSchema.Validate(jsonschema.NewGoLoader(tmpStructForValidation))
-	misc.CheckIfErr(err)
+	misc.CheckIfErr(err, stack)
 	if !validation.Valid() {
 		var errs string
 		for _, e := range validation.Errors() {
 			errs = errs + "\n" + e.String()
 		}
 		err := fmt.Errorf(consts.MessageBadStackErr, errs)
-		misc.CheckIfErr(err)
+		misc.CheckIfErr(err, stack)
 	}
 
 	misc.LoadYAML(stackYAML, &stack.config)
@@ -254,14 +254,14 @@ func (stack *Stack) LoadFromFile(stackFile string, parentStack types.Stack) {
 	var tmpStructForValidation interface{}
 	misc.LoadYAMLFromFile(stackFile, &tmpStructForValidation)
 	validation, err := schema.ConfigSchema.Validate(jsonschema.NewGoLoader(tmpStructForValidation))
-	misc.CheckIfErr(err)
+	misc.CheckIfErr(err, stack)
 	if !validation.Valid() {
 		var errs string
 		for _, e := range validation.Errors() {
 			errs = errs + "\n" + e.String()
 		}
 		err := fmt.Errorf(consts.MessageBadStackErr, errs)
-		misc.CheckIfErr(err)
+		misc.CheckIfErr(err, stack)
 	}
 
 	misc.LoadYAMLFromFile(stackFile, &stack.config)
@@ -349,18 +349,22 @@ func (stack *Stack) Start(parentWG *sync.WaitGroup) {
 
 	defer stack.done()
 
-	if app.App.AppError != 0 {
+	select {
+	case <-app.App.Context.Done():
 		stack.SetStatus("Cancelled because app error")
 		return
+	default: // Prevent from blocking.
 	}
 
 	stack.preExecWG.Add(1)
 	go stack.PreExec(&stack.preExecWG)
 	stack.preExecWG.Wait()
 
-	if app.App.AppError != 0 {
+	select {
+	case <-app.App.Context.Done():
 		stack.SetStatus("Cancelled because app error")
 		return
+	default: // Prevent from blocking.
 	}
 
 	if !conditions.When(stack, stack.When) {
@@ -378,9 +382,11 @@ func (stack *Stack) Start(parentWG *sync.WaitGroup) {
 	go stack.Exec(&stack.execWG)
 	stack.execWG.Wait()
 
-	if app.App.AppError != 0 {
+	select {
+	case <-app.App.Context.Done():
 		stack.SetStatus("Cancelled because app error")
 		return
+	default: // Prevent from blocking.
 	}
 
 	// Start sub stacks
@@ -402,9 +408,11 @@ func (stack *Stack) Start(parentWG *sync.WaitGroup) {
 	go stack.PostExec(&stack.postExecWG)
 	stack.postExecWG.Wait()
 
-	if app.App.AppError != 0 {
+	select {
+	case <-app.App.Context.Done():
 		stack.SetStatus("Cancelled because app error")
 		return
+	default: // Prevent from blocking.
 	}
 
 	stack.SetStatus("Done")
@@ -443,7 +451,7 @@ func parseInputYAML(stack *Stack, input stackInputYAML, parentStack types.Stack)
 		cliVars := make(map[string]interface{})
 		for _, str := range *app.App.Config.CLIValues {
 			varsMap, err := strvals.Parse(str)
-			misc.CheckIfErr(err)
+			misc.CheckIfErr(err, stack)
 			mergo.Merge(&cliVars, varsMap, mergo.WithOverwriteWithEmptyValue)
 		}
 		varsArray = append(varsArray, cliVars)
@@ -460,7 +468,7 @@ func parseInputYAML(stack *Stack, input stackInputYAML, parentStack types.Stack)
 	stack.Flags = vars.FlagsGlobal
 	stack.GetFlags().Mux.Lock()
 	err := mergo.Merge(&stack.Flags.Vars, input.Flags)
-	misc.CheckIfErr(err)
+	misc.CheckIfErr(err, stack)
 	stack.GetFlags().Mux.Unlock()
 
 	stack.Input = new(types.StackInput)
@@ -482,7 +490,7 @@ func parseInputYAML(stack *Stack, input stackInputYAML, parentStack types.Stack)
 	if waitTimeout != "" {
 		var err error
 		stack.WaitTimeout, err = time.ParseDuration(waitTimeout)
-		misc.CheckIfErr(err)
+		misc.CheckIfErr(err, stack)
 	}
 	stack.waitGroups = input.WaitGroups
 }

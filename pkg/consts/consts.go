@@ -21,6 +21,9 @@ const (
 // ExitCodes
 const (
 	ExitCodeOK = iota
+	ExitCodeScriptFailed
+	ExitCodeSIGTERM
+	ExitCodeWaitTimeout
 )
 
 // other

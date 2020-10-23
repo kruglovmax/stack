@@ -1,6 +1,7 @@
 package app
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"os/signal"
@@ -8,6 +9,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/kruglovmax/stack/pkg/consts"
 	"github.com/kruglovmax/stack/pkg/log"
 	"github.com/kruglovmax/stack/pkg/out"
 	"github.com/kruglovmax/stack/pkg/types"
@@ -19,6 +21,8 @@ var (
 )
 
 type app struct {
+	Context       context.Context
+	Cancel        context.CancelFunc
 	Config        *appConfig
 	StacksStatus  *types.StacksStatus
 	Mutex         *appMutex
@@ -47,6 +51,7 @@ type appMutex struct {
 
 func init() {
 	App = new(app)
+	App.Context, App.Cancel = context.WithCancel(context.Background())
 	App.Config = new(appConfig)
 	App.Mutex = new(appMutex)
 	App.StdOut = out.New(os.Stdout)
@@ -72,7 +77,8 @@ func setupCloseHandler() {
 	signal.Notify(c, os.Interrupt, syscall.SIGTERM)
 	go func() {
 		<-c
-		log.Logger.Error().Msg("Ctrl+C pressed in Terminal. Gracefully shutting down...")
-		App.AppError = 2
+		log.Logger.Error().Msg("SIGTERM received. Gracefully shutting down...")
+		App.AppError = consts.ExitCodeSIGTERM
+		App.Cancel()
 	}()
 }

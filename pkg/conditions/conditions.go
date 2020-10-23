@@ -16,6 +16,7 @@ import (
 
 	"github.com/kruglovmax/stack/pkg/app"
 	"github.com/kruglovmax/stack/pkg/cel"
+	"github.com/kruglovmax/stack/pkg/consts"
 	"github.com/kruglovmax/stack/pkg/log"
 	"github.com/kruglovmax/stack/pkg/types"
 )
@@ -50,11 +51,23 @@ func Wait(stack types.Stack, condition string, timeout time.Duration) (result bo
 	case <-time.After(timeout):
 		log.Logger.Debug().
 			Msg(string(debug.Stack()))
-		log.Logger.Fatal().
+		log.Logger.Error().
 			Str("timeout", fmt.Sprintf("%s", timeout)).
 			Str("in stack", stack.GetWorkdir()).
 			Str("condition", condition).
 			Msg("Waiting failed")
+		app.App.AppError = consts.ExitCodeWaitTimeout
+		app.App.Cancel()
+		return
+	case <-app.App.Context.Done():
+		log.Logger.Debug().
+			Msg(string(debug.Stack()))
+		log.Logger.Error().
+			Str("timeout", fmt.Sprintf("%s", timeout)).
+			Str("in stack", stack.GetWorkdir()).
+			Str("condition", condition).
+			Msg("Waiting failed")
+		return
 	}
 
 	return
@@ -81,6 +94,11 @@ func WaitGroupAdd(stack types.Stack, waitgroup string) *sync.WaitGroup {
 
 func waitLoop(stack types.Stack, condition string, exit chan int) {
 	for {
+		select {
+		case <-app.App.Context.Done():
+			break
+		default: // Prevent from blocking.
+		}
 		if checkCondition(stack, condition, stack.GetView().(map[string]interface{})) {
 			break
 		}

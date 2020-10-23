@@ -29,6 +29,9 @@ const (
 func main() {
 	rand.Seed(time.Now().UnixNano())
 
+	// Cancel even if everything goes fine without an error to release resources.
+	defer app.App.Cancel()
+
 	// Flag domain.
 	fs := pflag.NewFlagSet("default", pflag.ContinueOnError)
 	fs.Usage = func() {
@@ -100,7 +103,7 @@ Example:
 	stack.RunRootStack(*app.App.Config.Workdir)
 
 	switch app.App.AppError {
-	case 0:
+	case consts.ExitCodeOK:
 		log.Logger.Info().Int("Code", app.App.AppError).Msg("DONE")
 	default:
 		log.Logger.Error().Int("Code", app.App.AppError).Msg("FAIL")
