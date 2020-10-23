@@ -100,12 +100,12 @@ func (item *groupItem) parse() {
 	item.RunTimeout = 0
 	if runTimeout != nil {
 		item.RunTimeout, err = time.ParseDuration(runTimeout.(string))
-		misc.CheckIfErr(err)
+		misc.CheckIfErr(err, item.stack)
 	}
 	waitTimeout := item.rawItem["waitTimeout"]
 	item.WaitTimeout = *app.App.Config.DefaultTimeout
 	if waitTimeout != nil {
 		item.WaitTimeout, err = time.ParseDuration(waitTimeout.(string))
-		misc.CheckIfErr(err)
+		misc.CheckIfErr(err, item.stack)
 	}
 }

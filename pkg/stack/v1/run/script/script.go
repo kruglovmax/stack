@@ -62,22 +62,22 @@ func (item *scriptItem) Exec(parentWG *sync.WaitGroup) {
 	}
 
 	varsFile, err := ioutil.TempFile("/tmp", "vars")
-	misc.CheckIfErr(err)
+	misc.CheckIfErr(err, item.stack)
 	defer os.Remove(varsFile.Name())
 	switch item.Vars.(type) {
 	case map[string]interface{}:
 		err := ioutil.WriteFile(varsFile.Name(), []byte(misc.ToJSON(item.Vars.(map[string]interface{}))), 0600)
-		misc.CheckIfErr(err)
+		misc.CheckIfErr(err, item.stack)
 	case string:
 		stackMap := item.stack.GetView().(map[string]interface{})
 		stackMap["stack"] = stackMap
 		vars, err := dotnotation.Get(stackMap, item.Vars.(string))
-		misc.CheckIfErr(err)
+		misc.CheckIfErr(err, item.stack)
 		err = ioutil.WriteFile(varsFile.Name(), []byte(misc.ToJSON(vars)), 0600)
-		misc.CheckIfErr(err)
+		misc.CheckIfErr(err, item.stack)
 	case nil:
 		err := ioutil.WriteFile(varsFile.Name(), []byte(misc.ToJSON(item.stack.GetView())), 0600)
-		misc.CheckIfErr(err)
+		misc.CheckIfErr(err, item.stack)
 	default:
 		log.Logger.Trace().
 			Msg(spew.Sdump(item))
@@ -94,9 +94,9 @@ func (item *scriptItem) Exec(parentWG *sync.WaitGroup) {
 		fmt.Sprintf("STACK_GITCLONE_DIR=%s", filepath.Join(*app.App.Config.Workdir, consts.GitCloneDir)),
 	)
 	stderr, err := cmd.StderrPipe()
-	misc.CheckIfErr(err)
+	misc.CheckIfErr(err, item.stack)
 	stdout, err := cmd.StdoutPipe()
-	misc.CheckIfErr(err)
+	misc.CheckIfErr(err, item.stack)
 
 	stdoutBufio := bufio.NewScanner(stdout)
 	stderrBufio := bufio.NewScanner(stderr)
@@ -107,7 +107,7 @@ func (item *scriptItem) Exec(parentWG *sync.WaitGroup) {
 	go item.getScriptOutput(item.stack, stderrBufio, &wg, true)
 
 	err = cmd.Start()
-	misc.CheckIfErr(err)
+	misc.CheckIfErr(err, item.stack)
 
 	runTimeout := *app.App.Config.DefaultTimeout
 	if item.RunTimeout != 0 {
@@ -129,7 +129,7 @@ func (item *scriptItem) Exec(parentWG *sync.WaitGroup) {
 			Msg("Error in")
 
 		misc.PrintStackTrace(item.stack)
-		app.App.AppError = 1
+		app.App.AppError = consts.ExitCodeScriptFailed
 		item.stack.SetStatus("ScriptError")
 	}
 }
@@ -181,7 +181,7 @@ func (item *scriptItem) getScriptOutput(stack types.Stack, output *bufio.Scanner
 	if yml2var != "" {
 		var value map[string]interface{}
 		err := yaml.Unmarshal([]byte(outBuffer.String()), &value)
-		misc.CheckIfErr(err)
+		misc.CheckIfErr(err, item.stack)
 		switch {
 		case strings.HasPrefix(yml2var, "vars") || strings.HasPrefix(yml2var, "stack.vars"):
 			key := strings.TrimPrefix(yml2var, "stack.")
@@ -204,7 +204,7 @@ func (item *scriptItem) getScriptOutput(stack types.Stack, output *bufio.Scanner
 			}
 			stack.GetFlags().Mux.Lock()
 			err := mergo.Merge(&stack.GetFlags().Vars, setVar.Data().(map[string]interface{}), mergo.WithOverwriteWithEmptyValue)
-			misc.CheckIfErr(err)
+			misc.CheckIfErr(err, item.stack)
 			stack.GetFlags().Mux.Unlock()
 		case strings.HasPrefix(yml2var, "locals") || strings.HasPrefix(yml2var, "stack.locals"):
 			key := strings.TrimPrefix(yml2var, "stack.")
@@ -217,7 +217,7 @@ func (item *scriptItem) getScriptOutput(stack types.Stack, output *bufio.Scanner
 			}
 			stack.GetLocals().Mux.Lock()
 			err := mergo.Merge(&stack.GetLocals().Vars, setVar.Data().(map[string]interface{}), mergo.WithOverwriteWithEmptyValue)
-			misc.CheckIfErr(err)
+			misc.CheckIfErr(err, item.stack)
 			stack.GetLocals().Mux.Unlock()
 		default:
 			log.Logger.Fatal().
@@ -242,7 +242,7 @@ func (item *scriptItem) getScriptOutput(stack types.Stack, output *bufio.Scanner
 			setVar.SetP(value, key)
 			stack.GetFlags().Mux.Lock()
 			err := mergo.Merge(&stack.GetFlags().Vars, setVar.Data().(map[string]interface{}), mergo.WithOverwriteWithEmptyValue)
-			misc.CheckIfErr(err)
+			misc.CheckIfErr(err, item.stack)
 			stack.GetFlags().Mux.Unlock()
 		case strings.HasPrefix(str2var, "locals.") || strings.HasPrefix(str2var, "stack.locals."):
 			key := strings.TrimPrefix(yml2var, "stack.")
@@ -251,7 +251,7 @@ func (item *scriptItem) getScriptOutput(stack types.Stack, output *bufio.Scanner
 			setVar.SetP(value, key)
 			stack.GetLocals().Mux.Lock()
 			err := mergo.Merge(&stack.GetLocals().Vars, setVar.Data().(map[string]interface{}), mergo.WithOverwriteWithEmptyValue)
-			misc.CheckIfErr(err)
+			misc.CheckIfErr(err, item.stack)
 			stack.GetLocals().Mux.Unlock()
 		default:
 			log.Logger.Fatal().
@@ -274,7 +274,7 @@ func (item *scriptItem) parse() {
 		case []interface{}:
 			item.Output = value.([]interface{})
 		default:
-			misc.CheckIfErr(fmt.Errorf("Bad output stack: %s", item.stack.GetWorkdir()))
+			misc.CheckIfErr(fmt.Errorf("Bad output stack: %s", item.stack.GetWorkdir()), item.stack)
 		}
 	} else {
 		item.Output = []interface{}{""}
@@ -292,12 +292,12 @@ func (item *scriptItem) parse() {
 	item.RunTimeout = *app.App.Config.DefaultTimeout
 	if runTimeout != nil {
 		item.RunTimeout, err = time.ParseDuration(runTimeout.(string))
-		misc.CheckIfErr(err)
+		misc.CheckIfErr(err, item.stack)
 	}
 	waitTimeout := item.rawItem["waitTimeout"]
 	item.WaitTimeout = *app.App.Config.DefaultTimeout
 	if waitTimeout != nil {
 		item.WaitTimeout, err = time.ParseDuration(waitTimeout.(string))
-		misc.CheckIfErr(err)
+		misc.CheckIfErr(err, item.stack)
 	}
 }
