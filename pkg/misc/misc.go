@@ -182,18 +182,22 @@ func GitClone(parentWG *sync.WaitGroup, gitClonePath, gitURL, gitRef string, fet
 		Progress: nil,
 	})
 	if err == git.ErrRepositoryAlreadyExists {
+		log.Logger.Debug().Str("gitclone", gitClonePath).Msg("Repository already exists")
 		// fetch repo
 		if fetchIfExists {
 			gitRepo, err = git.PlainOpen(gitClonePath)
 			if err != nil {
+				log.Logger.Debug().Str("gitclone", gitClonePath).Msgf("\n%s", err.Error())
 				return
 			}
 			err = gitRepo.Fetch(&git.FetchOptions{Progress: os.Stderr})
+			log.Logger.Debug().Str("gitclone", gitClonePath).Msgf("\n%s", err.Error())
 		} else {
 			return
 		}
 	}
 	if err != nil && err != git.NoErrAlreadyUpToDate {
+		log.Logger.Debug().Str("gitclone", gitClonePath).Msgf("\n%s", err.Error())
 		return
 	}
 	var gitWorkTree *git.Worktree

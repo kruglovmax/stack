@@ -63,10 +63,9 @@ func Wait(stack types.Stack, condition string, timeout time.Duration) (result bo
 		log.Logger.Debug().
 			Msg(string(debug.Stack()))
 		log.Logger.Error().
-			Str("timeout", fmt.Sprintf("%s", timeout)).
 			Str("in stack", stack.GetWorkdir()).
 			Str("condition", condition).
-			Msg("Waiting failed")
+			Msg("Waiting cancelled")
 		return
 	}
 
